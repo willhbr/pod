@@ -1,27 +1,19 @@
-# pod-compost
+# Pod
 
-TODO: Write a description here
+_A helper utility for running containers_
 
 ## Installation
 
-TODO: Write installation instructions here
+```shell
+$ shards build --release
+$ cp bin/pod ~/.local/bin
+```
 
 ## Usage
 
-TODO: Write usage instructions here
-
-## Development
-
-TODO: Write development instructions here
-
-## Contributing
-
-1. Fork it (<https://github.com/your-github-user/pod-compost/fork>)
-2. Create your feature branch (`git checkout -b my-new-feature`)
-3. Commit your changes (`git commit -am 'Add some feature'`)
-4. Push to the branch (`git push origin my-new-feature`)
-5. Create a new Pull Request
-
-## Contributors
-
-- [Will Richardson](https://github.com/your-github-user) - creator and maintainer
+```shell
+$ pod init
+# edit pods.yaml and Containerfile to taste
+$ pod build example
+$ pod run example
+```

@@ -2,7 +2,26 @@ require "yaml"
 require "./pod-compost/*"
 require "clim"
 
-DEFAULT_CONFIG_FILE = "pods.yaml"
+DEFAULT_CONFIG_FILE   = "pods.yaml"
+EXAMPLE_CONTAINERFILE = "
+FROM alpine:latest
+ENTRYPOINT sh
+"
+
+def fail(msg) : NoReturn
+  puts msg
+  exit 1
+end
+
+def load_config(path) : Config::File
+  if path && File.exists?(path)
+    return Config::File.from_yaml(File.read(path))
+  elsif File.exists? DEFAULT_CONFIG_FILE
+    return Config::File.from_yaml(File.read(path))
+  else
+    fail "Config file #{path || DEFAULT_CONFIG_FILE} does not exist"
+  end
+end
 
 class CLI < Clim
   main do
@@ -12,60 +31,40 @@ class CLI < Clim
       puts opts.help_string
     end
     sub "build" do
-      desc "build stuff"
-      usage "pod build [tool] [arguments]"
+      desc "build an image"
+      usage "pod build [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
       argument "target", type: String, desc: "target to build", required: false
 
       run do |opts, args|
-        config = Config::File.from_yaml(File.read(opts.config))
-        image : Config::Image
-        if args.target.nil?
-          if config.images.size == 1
-            image = config.images[0]
-          else
-            puts "multiple images defined in #{opts.config}, specify what to build"
-            exit 1
-          end
-        else
-          unless img = config.images.find { |img| img.name == args.target }
-            puts "image #{args.target} not defined in #{opts.config}"
-            exit 1
-          end
-          image = img
+        config = load_config(opts.config)
+        target = args.target || config.defaults.build || fail "no target or default specified"
+        unless image = config.images[target]?
+          puts "image #{args.target} not defined in #{opts.config}"
+          exit 1
         end
         Process.exec(command: "podman", args: image.to_command)
       end
     end
     sub "run" do
-      desc "build and run specs"
-      usage "pod run [options] [files]"
+      desc "run a container"
+      usage "pod run [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
-        config = Config::File.from_yaml(File.read(opts.config))
-        container : Config::Container
-        if args.target.nil?
-          if config.containers.size == 1
-            container = config.containers[0]
-          else
-            puts "multiple containers defined in #{opts.config}, specify what to build"
-            exit 1
-          end
-        else
-          unless cont = config.containers.find { |cont| cont.name == args.target }
-            puts "container #{args.target} not defined in #{opts.config}"
-            exit 1
-          end
-          container = cont
+        config = load_config(opts.config)
+        target = args.target || config.defaults.run || fail "no target or default specified"
+        unless container = config.containers[target]?
+          puts "container #{args.target} not defined in #{opts.config}"
+          exit 1
         end
         Process.exec(command: "podman", args: container.to_command)
       end
     end
     sub "shell" do
       desc "run a shell in a container"
-      usage "pod shell"
+      usage "pod shell <container>"
       argument "target", type: String, desc: "target to run in", required: true
 
       run do |opts, args|
@@ -74,7 +73,7 @@ class CLI < Clim
     end
     sub "attach" do
       desc "attach to a container"
-      usage "pod attach"
+      usage "pod attach <container>"
       argument "target", type: String, desc: "target to run in", required: true
       run do |opts, args|
         Process.exec(command: "podman", args: {"attach", args.target})
@@ -82,12 +81,29 @@ class CLI < Clim
     end
     sub "logs" do
       desc "show logs from a container"
-      usage "pod logs"
+      usage "pod logs <container>"
       argument "target", type: String, desc: "target to run in", required: true
       option "-f FOLLOW", "--follow=FOLLOW", type: Bool, desc: "follow logs", default: true
 
       run do |opts, args|
         Process.exec(command: "podman", args: {"logs", "--follow=#{opts.follow}", args.target})
+      end
+    end
+    sub "init" do
+      desc "initialise a config file"
+      usage "pod init"
+
+      run do |opts, args|
+        config = Config::File.new(Config::Defaults.new("example", "example"))
+        config.images["example"] = Config::Image.new("Containerfile", "pod-example:latest")
+        container = Config::Container.new("pod-example", "pod-example:latest")
+        container.cmd_args << "sh"
+        config.containers["example"] = container
+        File.open(DEFAULT_CONFIG_FILE, "w") { |f| config.to_yaml(f) }
+        unless File.exists? "Containerfile"
+          File.write "Containerfile", EXAMPLE_CONTAINERFILE
+        end
+        puts "Initialised pod config files in #{File.basename(Dir.current)}"
       end
     end
   end
