@@ -34,12 +34,13 @@ images:
 containers:
   website:
     name: willhbr.github.io
-    image: willhbr.github.io
+    image: willhbr.github.io:latest
+    bind-mounts:
+      .: /src
+    ports:
+      4000: 4000
+    interactive: true
+    autoremove: true
     run-args:
       userns: ""
-      mount: type=bind,src=.,dst=/src
-      publish: 4000:4000
-      rm: true
-      interactive: true
-      tty: true
 ```

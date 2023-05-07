@@ -24,6 +24,16 @@ def load_config(path) : Config::File
   end
 end
 
+def run_podman(args, remote = nil)
+  if remote
+    a = ["--remote=true", "--connection=#{remote}"]
+    a.concat(args)
+  else
+    a = args
+  end
+  Process.exec(command: "podman", args: a)
+end
+
 class CLI < Clim
   main do
     desc "Pod CLI"
@@ -117,17 +127,20 @@ class CLI < Clim
       desc "run a shell in a container"
       usage "pod shell <container>"
       argument "target", type: String, desc: "target to run in", required: true
+      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
 
       run do |opts, args|
-        Process.exec(command: "podman", args: {"exec", "-it", args.target, "sh", "-c", "if which bash 2> /dev/null; then bash; else sh; fi"})
+        run_podman({"exec", "-it", args.target, "sh", "-c",
+                    "if which bash 2> /dev/null; then bash; else sh; fi"}, remote: opts.remote)
       end
     end
     sub "attach" do
       desc "attach to a container"
       usage "pod attach <container>"
       argument "target", type: String, desc: "target to run in", required: true
+      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       run do |opts, args|
-        Process.exec(command: "podman", args: {"attach", args.target})
+        run_podman({"attach", args.target}, remote: opts.remote)
       end
     end
     sub "logs" do
@@ -135,9 +148,10 @@ class CLI < Clim
       usage "pod logs <container>"
       argument "target", type: String, desc: "target to run in", required: true
       option "-f FOLLOW", "--follow=FOLLOW", type: Bool, desc: "follow logs", default: true
+      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
 
       run do |opts, args|
-        Process.exec(command: "podman", args: {"logs", "--follow=#{opts.follow}", args.target})
+        run_podman({"logs", "--follow=#{opts.follow}", args.target}, remote: opts.remote)
       end
     end
     sub "init" do
