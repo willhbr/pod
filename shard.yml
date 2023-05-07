@@ -1,4 +1,4 @@
-name: pod-compost
+name: pod
 version: 0.1.0
 
 authors:
@@ -6,7 +6,7 @@ authors:
 
 targets:
   pod:
-    main: src/pod-compost.cr
+    main: src/pod.cr
 
 crystal: 1.8.1
 

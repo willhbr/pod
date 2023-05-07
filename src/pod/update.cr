@@ -1,59 +1,4 @@
-require "json"
-
 module Podman
-  class Container
-    include JSON::Serializable
-    include YAML::Serializable
-
-    enum State
-      Running
-      Paused
-      Exited
-    end
-
-    @[JSON::Field(key: "Id")]
-    getter id : String
-    @[JSON::Field(key: "Image")]
-    getter image : String
-    @[JSON::Field(key: "ImageID")]
-    getter image_id : String
-    @[JSON::Field(key: "Names")]
-    getter names : Array(String)
-
-    def name
-      @names.first.not_nil!
-    end
-
-    @[JSON::Field(key: "Pid")]
-    getter pid : Int32
-    @[JSON::Field(key: "StartedAt", converter: Time::EpochConverter)]
-    getter started_at : Time
-    @[JSON::Field(key: "Created", converter: Time::EpochConverter)]
-    getter created : Time
-
-    def uptime : Time::Span
-      Time.utc - @started_at
-    end
-
-    @[JSON::Field(key: "Exited")]
-    getter exited : Bool
-    @[JSON::Field(key: "ExitCode")]
-    getter exit_code : Int32
-    @[JSON::Field(key: "State")]
-    getter state : State
-
-    @[JSON::Field(key: "Labels")]
-    getter _labels : Hash(String, String)?
-
-    def labels
-      @_labels ||= Hash(String, String).new
-    end
-
-    def pod_hash : String
-      self.labels["pod_hash"]? || ""
-    end
-  end
-
   class Manager
     def initialize(@executable : String)
     end
@@ -109,19 +54,6 @@ module Podman
 
       container_hash = container.pod_hash
       config_hash = config.pod_hash
-
-      if container_hash == config_hash
-        Log.info { "Container hashes equal, checking image for update..." }
-        #        unless min_time = policy.new_image
-        #          Log.info { "No new_image time so skipping update on #{config.name}" }
-        #          return
-        #        end
-
-        #        unless container.uptime > min_time
-        #          Log.info { "uptime: #{container.uptime} < new_image time: #{min_time} so skipping update" }
-        #          return
-        #        end
-      end
 
       # check if image has updated
       id = run({"pull", config.image, "--quiet"}).strip

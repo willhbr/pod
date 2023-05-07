@@ -1,5 +1,5 @@
 require "yaml"
-require "./pod-compost/*"
+require "./pod/*"
 require "clim"
 require "geode"
 
