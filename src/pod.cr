@@ -36,12 +36,13 @@ class CLI < Clim
       usage "pod build [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
       option "-s", "--show", type: Bool, desc: "Show command only", default: false
+      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       argument "target", type: String, desc: "target to build", required: false
 
       run do |opts, args|
         config = load_config(opts.config)
         config.get_images(args.target).each do |name, image|
-          args = image.to_command
+          args = image.to_command(remote: opts.remote)
           if opts.show
             puts "podman #{Process.quote(args)}"
           else
@@ -63,6 +64,7 @@ class CLI < Clim
       option "-s", "--show", type: Bool, desc: "Show command only", default: false
       option "-d", "--detach", type: Bool, desc: "Run container detached", default: false
       option "-i", "--interactive", type: Bool, desc: "Run container interactive", default: false
+      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
@@ -78,7 +80,7 @@ class CLI < Clim
           detached = false
         end
         containers.each do |name, container|
-          args = container.to_command(detached: detached)
+          args = container.to_command(detached: detached, remote: opts.remote)
           if opts.show
             puts "podman #{Process.quote(args)}"
           elsif multiple
@@ -99,12 +101,15 @@ class CLI < Clim
       desc "update a running container"
       usage "pod update [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
         config = load_config(opts.config)
         containers = config.get_containers(args.target)
-        manager = Podman::Manager.new("podman")
+        manager = Podman::Manager.new("podman") do |config|
+          config.to_command(detached: true, remote: opts.remote)
+        end
         manager.update_containers(containers.map { |c| c[1] })
       end
     end

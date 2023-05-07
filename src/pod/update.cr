@@ -1,6 +1,6 @@
 module Podman
   class Manager
-    def initialize(@executable : String)
+    def initialize(@executable : String, &@get_args : Proc(Config::Container, Array(String)))
     end
 
     def run(args : Enumerable(String)) : String
@@ -21,7 +21,7 @@ module Podman
     end
 
     def start_container(config : Config::Container) : String
-      args = config.to_command(detached: true)
+      args = @get_args.call(config)
       Log.info { "Starting container: #{Process.quote args}" }
       output = run(args)
       Log.info { "Run container: #{output}" }

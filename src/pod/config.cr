@@ -74,10 +74,13 @@ module Config
     def initialize(@from, @tag)
     end
 
-    def to_command : Array(String)
+    def to_command(remote = nil) : Array(String)
       args = Array(String).new
       podman_args = @args.dup
-      if con = @connection
+      if rem = remote
+        podman_args.replace "remote", "true"
+        podman_args.replace "connection", rem
+      elsif con = @connection
         podman_args.replace "remote", "true"
         podman_args.replace "connection", con
       end
@@ -120,10 +123,13 @@ module Config
     def initialize(@name, @image)
     end
 
-    def to_command(detached : Bool? = nil, include_hash = true)
+    def to_command(detached : Bool? = nil, include_hash = true, remote = nil)
       args = Array(String).new
       podman_args = @args.dup
-      if con = @connection
+      if rem = remote
+        podman_args.replace "remote", "true"
+        podman_args.replace "connection", rem
+      elsif con = @connection
         podman_args.replace "remote", "true"
         podman_args.replace "connection", con
       end
