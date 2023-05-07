@@ -11,6 +11,39 @@ module Config
     getter defaults = Defaults.new(nil, nil)
     getter images = Hash(String, Config::Image).new
     getter containers = Hash(String, Config::Container).new
+    getter groups = Hash(String, Set(String)).new
+
+    def get_images(target : String?) : Array({String, Config::Image})
+      if target.nil?
+        target = @defaults.run || ":all"
+      end
+      if i = @images[target]?
+        return [{target, i}]
+      end
+      if target == ":all"
+        return @images.to_a
+      end
+      if group = @groups[target]?
+        return group.map { |c| {c, @images[c]} }
+      end
+      raise "no image or group matches #{target}"
+    end
+
+    def get_containers(target : String?) : Array({String, Config::Container})
+      if target.nil?
+        target = @defaults.run || ":all"
+      end
+      if c = @containers[target]?
+        return [{target, c}]
+      end
+      if target == ":all"
+        return @containers.to_a
+      end
+      if group = @groups[target]?
+        return group.map { |c| {c, @containers[c]} }
+      end
+      raise "no container or group matches #{target}"
+    end
 
     def initialize(@defaults)
     end
@@ -87,7 +120,7 @@ module Config
     def initialize(@name, @image)
     end
 
-    def to_command(include_hash = true)
+    def to_command(detached : Bool? = nil, include_hash = true)
       args = Array(String).new
       podman_args = @args.dup
       if con = @connection
@@ -97,9 +130,15 @@ module Config
       args.concat Config.as_args(podman_args)
       args << "run"
       run_args = @run_args.dup
-      if @interactive
+      do_interactive = @interactive
+      if detached != nil
+        do_interactive = !detached
+      end
+      if do_interactive
         run_args["tty"] = "true"
         run_args["interactive"] = "true"
+      else
+        run_args["detach"] = "true"
       end
       if @autoremove
         run_args["rm"] = "true"

@@ -4,3 +4,7 @@ shards:
     git: https://github.com/at-grandpa/clim.git
     version: 0.17.1
 
+  geode:
+    git: https://github.com/willhbr/geode.git
+    version: 0.1.0+git.commit.035c66b53c89e1202076a2c9d4660cf7156c3eb4
+

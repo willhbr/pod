@@ -1,6 +1,7 @@
 require "yaml"
 require "./pod-compost/*"
 require "clim"
+require "geode"
 
 DEFAULT_CONFIG_FILE   = "pods.yaml"
 EXAMPLE_CONTAINERFILE = "\
@@ -39,15 +40,19 @@ class CLI < Clim
 
       run do |opts, args|
         config = load_config(opts.config)
-        target = args.target || config.defaults.build || fail "no target or default specified"
-        unless image = config.images[target]?
-          puts "image #{args.target} not defined in #{opts.config}"
-          exit 1
-        end
-        if opts.show
-          puts "podman #{Process.quote(image.to_command)}"
-        else
-          Process.exec(command: "podman", args: image.to_command)
+        config.get_images(args.target).each do |name, image|
+          args = image.to_command
+          if opts.show
+            puts "podman #{Process.quote(args)}"
+          else
+            status = Process.run(command: "podman", args: args,
+              input: Process::Redirect::Close,
+              output: Process::Redirect::Inherit,
+              error: Process::Redirect::Inherit)
+            unless status.success?
+              fail "failed to build #{name}"
+            end
+          end
         end
       end
     end
@@ -56,20 +61,51 @@ class CLI < Clim
       usage "pod run [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
       option "-s", "--show", type: Bool, desc: "Show command only", default: false
+      option "-d", "--detach", type: Bool, desc: "Run container detached", default: false
+      option "-i", "--interactive", type: Bool, desc: "Run container interactive", default: false
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
         config = load_config(opts.config)
-        target = args.target || config.defaults.run || fail "no target or default specified"
-        unless container = config.containers[target]?
-          puts "container #{args.target} not defined in #{opts.config}"
-          exit 1
+        containers = config.get_containers(args.target)
+        multiple = containers.size > 1
+        detached = nil
+        if multiple
+          detached = true
+        elsif opts.detach
+          detached = true
+        elsif opts.interactive
+          detached = false
         end
-        if opts.show
-          puts "podman #{Process.quote(container.to_command)}"
-        else
-          Process.exec(command: "podman", args: container.to_command)
+        containers.each do |name, container|
+          args = container.to_command(detached: detached)
+          if opts.show
+            puts "podman #{Process.quote(args)}"
+          elsif multiple
+            status = Process.run(command: "podman", args: args,
+              input: Process::Redirect::Close,
+              output: Process::Redirect::Inherit,
+              error: Process::Redirect::Inherit)
+            unless status.success?
+              fail "failed to run #{name}"
+            end
+          else
+            Process.exec(command: "podman", args: args)
+          end
         end
+      end
+    end
+    sub "update" do
+      desc "update a running container"
+      usage "pod update [options]"
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      argument "target", type: String, desc: "target to run", required: false
+
+      run do |opts, args|
+        config = load_config(opts.config)
+        containers = config.get_containers(args.target)
+        manager = Podman::Manager.new("podman")
+        manager.update_containers(containers.map { |c| c[1] })
       end
     end
     sub "shell" do
@@ -117,6 +153,10 @@ class CLI < Clim
       end
     end
   end
+end
+
+Log.setup do |l|
+  l.stderr
 end
 
 CLI.start(ARGV)

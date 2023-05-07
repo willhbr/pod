@@ -15,4 +15,5 @@ license: MIT
 dependencies:
   clim:
     github: at-grandpa/clim
-
+  geode:
+    github: willhbr/geode
