@@ -1,0 +1,6 @@
+version: 2.0
+shards:
+  clim:
+    git: https://github.com/at-grandpa/clim.git
+    version: 0.17.1
+
