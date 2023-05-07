@@ -3,7 +3,7 @@ require "./pod-compost/*"
 require "clim"
 
 DEFAULT_CONFIG_FILE   = "pods.yaml"
-EXAMPLE_CONTAINERFILE = "
+EXAMPLE_CONTAINERFILE = "\
 FROM alpine:latest
 ENTRYPOINT sh
 "
@@ -34,6 +34,7 @@ class CLI < Clim
       desc "build an image"
       usage "pod build [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-s", "--show", type: Bool, desc: "Show command only", default: false
       argument "target", type: String, desc: "target to build", required: false
 
       run do |opts, args|
@@ -43,13 +44,18 @@ class CLI < Clim
           puts "image #{args.target} not defined in #{opts.config}"
           exit 1
         end
-        Process.exec(command: "podman", args: image.to_command)
+        if opts.show
+          puts "podman #{Process.quote(image.to_command)}"
+        else
+          Process.exec(command: "podman", args: image.to_command)
+        end
       end
     end
     sub "run" do
       desc "run a container"
       usage "pod run [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-s", "--show", type: Bool, desc: "Show command only", default: false
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
@@ -59,7 +65,11 @@ class CLI < Clim
           puts "container #{args.target} not defined in #{opts.config}"
           exit 1
         end
-        Process.exec(command: "podman", args: container.to_command)
+        if opts.show
+          puts "podman #{Process.quote(container.to_command)}"
+        else
+          Process.exec(command: "podman", args: container.to_command)
+        end
       end
     end
     sub "shell" do

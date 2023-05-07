@@ -1,3 +1,5 @@
+require "digest/sha1"
+
 module Config
   def self.as_args(args : KVMapping(String, String)) : Array(String)
     args.map { |k, v| "--#{k}=#{v}" }
@@ -67,16 +69,27 @@ module Config
     def initialize(@name, @image)
     end
 
-    def to_command
+    def to_command(include_hash = true)
       args = Array(String).new
       args.concat Config.as_args(@args)
       args << "run"
       run_args = @run_args.dup
       run_args["name"] = @name
+      if include_hash
+        run_args["label"] = "pod_hash=" + pod_hash
+      end
       args.concat Config.as_args(run_args)
       args << @image
       args.concat @cmd_args
       args
+    end
+
+    def pod_hash
+      dig = Digest::SHA1.new
+      self.to_command(include_hash: false).each do |arg|
+        dig.update(arg)
+      end
+      dig.hexfinal
     end
   end
 end
