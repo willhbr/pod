@@ -36,12 +36,19 @@ module Config
     @[YAML::Field(key: "build-args")]
     getter build_args = KVMapping(String, String).new
 
+    getter connection : String? = nil
+
     def initialize(@from, @tag)
     end
 
     def to_command : Array(String)
       args = Array(String).new
-      args.concat Config.as_args(@args)
+      podman_args = @args.dup
+      if con = @connection
+        podman_args.replace "remote", "true"
+        podman_args.replace "connection", con
+      end
+      args.concat Config.as_args(podman_args)
       args << "build"
       build_args = @build_args.dup
       if t = @tag
@@ -66,14 +73,48 @@ module Config
     @[YAML::Field(key: "cmd-args")]
     getter cmd_args = Array(String).new
 
+    # options that set other options
+    getter interactive : Bool = false
+    getter autoremove : Bool = true
+
+    @[YAML::Field(key: "bind-mounts")]
+    getter bind_mounts = Hash(String, String).new
+    getter volumes = Hash(String, String).new
+    getter ports = Hash(Int32, String).new
+
+    getter connection : String? = nil
+
     def initialize(@name, @image)
     end
 
     def to_command(include_hash = true)
       args = Array(String).new
-      args.concat Config.as_args(@args)
+      podman_args = @args.dup
+      if con = @connection
+        podman_args.replace "remote", "true"
+        podman_args.replace "connection", con
+      end
+      args.concat Config.as_args(podman_args)
       args << "run"
       run_args = @run_args.dup
+      if @interactive
+        run_args["tty"] = "true"
+        run_args["interactive"] = "true"
+      end
+      if @autoremove
+        run_args["rm"] = "true"
+      end
+
+      @bind_mounts.each do |source, dest|
+        run_args["mount"] = "type=bind,src=#{source},dst=#{dest}"
+      end
+      @volumes.each do |name, dest|
+        run_args["mount"] = "type=volume,src=#{name},dst=#{dest}"
+      end
+      @ports.each do |host, cont|
+        run_args["publish"] = "#{host}:#{cont}"
+      end
+
       run_args["name"] = @name
       if include_hash
         run_args["label"] = "pod_hash=" + pod_hash

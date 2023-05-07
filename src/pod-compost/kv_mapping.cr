@@ -1,6 +1,6 @@
 module Config
   class KVMapping(K, V)
-    @tuples = Array(Tuple(K, V)).new
+    @tuples : Array(Tuple(K, V))
 
     def self.new(ctx : YAML::ParseContext, node : YAML::Nodes::Node)
       ctx.read_alias(node, self) do |obj|
@@ -42,6 +42,17 @@ module Config
           value.to_yaml(yaml)
         end
       end
+    end
+
+    def self.new
+      new(Array(Tuple(K, V)).new)
+    end
+
+    def initialize(@tuples : Array(Tuple(K, V)))
+    end
+
+    def dup
+      KVMapping(K, V).new(@tuples.dup)
     end
 
     delegate map, to: @tuples
