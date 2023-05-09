@@ -14,14 +14,23 @@ def fail(msg) : NoReturn
   exit 1
 end
 
-def load_config(path) : Config::File
-  if path && File.exists?(path)
-    return Config::File.from_yaml(File.read(path))
-  elsif File.exists? DEFAULT_CONFIG_FILE
-    return Config::File.from_yaml(File.read(path))
-  else
-    fail "Config file #{path || DEFAULT_CONFIG_FILE} does not exist"
+def load_config(file) : Config::File?
+  paths = Path[Dir.current].parents
+  paths << Path[Dir.current]
+  paths.reverse.each do |path|
+    Dir.cd path
+    target = path / (file || DEFAULT_CONFIG_FILE)
+    if File.exists? target
+      return Config::File.from_yaml(File.read(target))
+    end
   end
+end
+
+def load_config!(file) : Config::File
+  if conf = load_config(file)
+    return conf
+  end
+  fail "Config file #{file || DEFAULT_CONFIG_FILE} does not exist"
 end
 
 def run_podman(args, remote = nil)
@@ -40,6 +49,15 @@ class CLI < Clim
     usage "pod [sub_command] [arguments]"
     run do |opts, args|
       puts opts.help_string
+      if conf = load_config(nil)
+        puts "pod build => pod build #{conf.defaults.build}" if conf.defaults.build
+        puts "pod run => pod run #{conf.defaults.build}" if conf.defaults.run
+        puts
+        puts "pod build #{conf.images.keys.join(", ")}"
+        puts "pod run #{conf.containers.keys.join(", ")}"
+        puts
+        puts "pod build|run :all,#{conf.groups.keys.join(", ")}"
+      end
     end
     sub "build" do
       desc "build an image"
@@ -50,7 +68,7 @@ class CLI < Clim
       argument "target", type: String, desc: "target to build", required: false
 
       run do |opts, args|
-        config = load_config(opts.config)
+        config = load_config!(opts.config)
         config.get_images(args.target).each do |name, image|
           args = image.to_command(remote: opts.remote)
           if opts.show
@@ -78,7 +96,7 @@ class CLI < Clim
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
-        config = load_config(opts.config)
+        config = load_config!(opts.config)
         containers = config.get_containers(args.target)
         multiple = containers.size > 1
         detached = nil
@@ -116,7 +134,7 @@ class CLI < Clim
       argument "target", type: String, desc: "target to push", required: false
 
       run do |opts, args|
-        config = load_config(opts.config)
+        config = load_config!(opts.config)
         images = config.get_images(args.target)
         multiple = images.size > 1
         images.each do |name, image|
@@ -155,7 +173,7 @@ class CLI < Clim
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
-        config = load_config(opts.config)
+        config = load_config!(opts.config)
         containers = config.get_containers(args.target)
         manager = Podman::Manager.new("podman") do |config|
           config.to_command(detached: true, remote: opts.remote)
