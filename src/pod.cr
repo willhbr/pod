@@ -107,6 +107,46 @@ class CLI < Clim
         end
       end
     end
+    sub "push" do
+      desc "push an image to a registry"
+      usage "pod push [options]"
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-s", "--show", type: Bool, desc: "Show command only", default: false
+      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
+      argument "target", type: String, desc: "target to push", required: false
+
+      run do |opts, args|
+        config = load_config(opts.config)
+        images = config.get_images(args.target)
+        multiple = images.size > 1
+        images.each do |name, image|
+          unless tag = image.tag
+            raise "can't push image with no tag: #{name}"
+          end
+          unless push = image.push
+            raise "can't push image with no push destination: #{name}"
+          end
+          if opts.remote
+            args = {"--remote=true", "--connection=#{opts.remote}", "push", tag, push}
+          else
+            args = {"push", tag, push}
+          end
+          if opts.show
+            puts "podman #{Process.quote(args)}"
+          elsif multiple
+            status = Process.run(command: "podman", args: args,
+              input: Process::Redirect::Close,
+              output: Process::Redirect::Inherit,
+              error: Process::Redirect::Inherit)
+            unless status.success?
+              fail "failed to run #{name}"
+            end
+          else
+            Process.exec(command: "podman", args: args)
+          end
+        end
+      end
+    end
     sub "update" do
       desc "update a running container"
       usage "pod update [options]"

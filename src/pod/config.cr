@@ -64,6 +64,7 @@ module Config
     include YAML::Serializable::Strict
     getter tag : String? = nil
     getter from : String
+    getter push : String? = nil
     getter context : String = "."
     getter args = KVMapping(String, String).new
     @[YAML::Field(key: "build-args")]
