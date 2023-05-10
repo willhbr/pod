@@ -53,10 +53,10 @@ class CLI < Clim
         puts "pod build => pod build #{conf.defaults.build}" if conf.defaults.build
         puts "pod run => pod run #{conf.defaults.build}" if conf.defaults.run
         puts
-        puts "pod build #{conf.images.keys.join(", ")}"
-        puts "pod run #{conf.containers.keys.join(", ")}"
+        puts "pod build #{conf.images.keys.join(", ")}" unless conf.images.size.zero?
+        puts "pod run #{conf.containers.keys.join(", ")}" unless conf.containers.size.zero?
         puts
-        puts "pod build|run :all,#{conf.groups.keys.join(", ")}"
+        puts "pod build|run :all,#{conf.groups.keys.join(", ")}" unless conf.groups.size.zero?
       end
     end
     sub "build" do
@@ -96,6 +96,12 @@ class CLI < Clim
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
+        extra_args = args.argv.skip_while { |a| a != "--" }.to_a
+        if extra_args.empty?
+          extra_args = nil
+        else
+          extra_args = extra_args[1...]
+        end
         config = load_config!(opts.config)
         containers = config.get_containers(args.target)
         multiple = containers.size > 1
@@ -108,7 +114,7 @@ class CLI < Clim
           detached = false
         end
         containers.each do |name, container|
-          args = container.to_command(detached: detached, remote: opts.remote)
+          args = container.to_command(extra_args, detached: detached, remote: opts.remote)
           if opts.show
             puts "podman #{Process.quote(args)}"
           elsif multiple
@@ -176,7 +182,7 @@ class CLI < Clim
         config = load_config!(opts.config)
         containers = config.get_containers(args.target)
         manager = Podman::Manager.new("podman") do |config|
-          config.to_command(detached: true, remote: opts.remote)
+          config.to_command(cmd_args: nil, detached: true, remote: opts.remote)
         end
         manager.update_containers(containers.map { |c| c[1] })
       end

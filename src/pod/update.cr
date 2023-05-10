@@ -53,7 +53,7 @@ module Podman
       end
 
       container_hash = container.pod_hash
-      config_hash = config.pod_hash
+      config_hash = config.pod_hash(args: nil)
 
       # check if image has updated
       id = run({"pull", config.image, "--quiet"}).strip

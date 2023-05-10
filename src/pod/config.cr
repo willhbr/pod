@@ -124,7 +124,11 @@ module Config
     def initialize(@name, @image)
     end
 
-    def to_command(detached : Bool? = nil, include_hash = true, remote = nil)
+    def to_command(
+      cmd_args : Enumerable(String)?,
+      detached : Bool? = nil,
+      include_hash = true, remote = nil
+    )
       args = Array(String).new
       podman_args = @args.dup
       if rem = remote
@@ -163,17 +167,22 @@ module Config
 
       run_args["name"] = @name
       if include_hash
-        run_args["label"] = "pod_hash=" + pod_hash
+        run_args["label"] = "pod_hash=" + pod_hash(cmd_args)
       end
       args.concat Config.as_args(run_args)
       args << @image
-      args.concat @cmd_args
+
+      if ca = cmd_args
+        args.concat ca
+      else
+        args.concat @cmd_args
+      end
       args
     end
 
-    def pod_hash
+    def pod_hash(args)
       dig = Digest::SHA1.new
-      self.to_command(include_hash: false).each do |arg|
+      self.to_command(args, include_hash: false).each do |arg|
         dig.update(arg)
       end
       dig.hexfinal
