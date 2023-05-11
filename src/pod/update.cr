@@ -1,3 +1,6 @@
+require "./config"
+require "./container"
+
 module Podman
   class Manager
     def initialize(@executable : String, &@get_args : Proc(Config::Container, Array(String)))

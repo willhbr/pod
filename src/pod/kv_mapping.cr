@@ -55,6 +55,6 @@ module Config
       KVMapping(K, V).new(@tuples.dup)
     end
 
-    delegate map, to: @tuples
+    delegate map, to_s, inspect, to: @tuples
   end
 end

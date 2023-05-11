@@ -9,6 +9,7 @@ module Podman
       Running
       Paused
       Exited
+      Configured
     end
 
     @[JSON::Field(key: "Id")]
@@ -43,6 +44,7 @@ module Podman
     getter state : State
 
     @[JSON::Field(key: "Labels")]
+    @[YAML::Field(key: "labels")]
     getter _labels : Hash(String, String)?
 
     def labels

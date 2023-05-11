@@ -1,4 +1,19 @@
 require "digest/sha1"
+require "yaml"
+require "./kv_mapping"
+
+class YAML::Nodes::Scalar
+  @expanded : String? = nil
+
+  def value : String
+    @expanded ||= @value.gsub(/\$\w+/) do |key|
+      ENV[key[1...]]? || key
+    end
+  end
+end
+
+class String
+end
 
 module Config
   def self.as_args(args : KVMapping(String, String)) : Array(String)

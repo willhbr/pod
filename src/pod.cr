@@ -195,7 +195,7 @@ class CLI < Clim
 
       run do |opts, args|
         run_podman({"exec", "-it", args.target, "sh", "-c",
-                    "if which bash 2> /dev/null; then bash; else sh; fi"}, remote: opts.remote)
+                    "if which bash > /dev/null 2>&1; then bash; else sh; fi"}, remote: opts.remote)
       end
     end
     sub "attach" do
