@@ -8,3 +8,7 @@ shards:
     git: https://github.com/willhbr/geode.git
     version: 0.1.0+git.commit.035c66b53c89e1202076a2c9d4660cf7156c3eb4
 
+  inotify:
+    git: https://github.com/petoem/inotify.cr.git
+    version: 1.0.3
+

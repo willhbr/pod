@@ -64,25 +64,13 @@ class CLI < Clim
       usage "pod build [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
       option "-s", "--show", type: Bool, desc: "Show command only", default: false
+      option "-i", "--interactive", type: Bool, desc: "Watch and rebuild on FS events", default: false
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       argument "target", type: String, desc: "target to build", required: false
 
       run do |opts, args|
         config = load_config!(opts.config)
-        config.get_images(args.target).each do |name, image|
-          args = image.to_command(remote: opts.remote)
-          if opts.show
-            puts "podman #{Process.quote(args)}"
-          else
-            status = Process.run(command: "podman", args: args,
-              input: Process::Redirect::Close,
-              output: Process::Redirect::Inherit,
-              error: Process::Redirect::Inherit)
-            unless status.success?
-              fail "failed to build #{name}"
-            end
-          end
-        end
+        Actuator.new(config, opts.remote, opts.show).ibuild(args.target)
       end
     end
     sub "run" do
@@ -103,32 +91,14 @@ class CLI < Clim
           extra_args = extra_args[1...]
         end
         config = load_config!(opts.config)
-        containers = config.get_containers(args.target)
-        multiple = containers.size > 1
-        detached = nil
-        if multiple
-          detached = true
-        elsif opts.detach
+        if opts.detach
           detached = true
         elsif opts.interactive
           detached = false
+        else
+          detached = nil
         end
-        containers.each do |name, container|
-          args = container.to_command(extra_args, detached: detached, remote: opts.remote)
-          if opts.show
-            puts "podman #{Process.quote(args)}"
-          elsif multiple
-            status = Process.run(command: "podman", args: args,
-              input: Process::Redirect::Close,
-              output: Process::Redirect::Inherit,
-              error: Process::Redirect::Inherit)
-            unless status.success?
-              fail "failed to run #{name}"
-            end
-          else
-            Process.exec(command: "podman", args: args)
-          end
-        end
+        Actuator.new(config, opts.remote, opts.show).run(args.target, detached, extra_args)
       end
     end
     sub "push" do
@@ -141,34 +111,7 @@ class CLI < Clim
 
       run do |opts, args|
         config = load_config!(opts.config)
-        images = config.get_images(args.target)
-        multiple = images.size > 1
-        images.each do |name, image|
-          unless tag = image.tag
-            raise "can't push image with no tag: #{name}"
-          end
-          unless push = image.push
-            raise "can't push image with no push destination: #{name}"
-          end
-          if opts.remote
-            args = {"--remote=true", "--connection=#{opts.remote}", "push", tag, push}
-          else
-            args = {"push", tag, push}
-          end
-          if opts.show
-            puts "podman #{Process.quote(args)}"
-          elsif multiple
-            status = Process.run(command: "podman", args: args,
-              input: Process::Redirect::Close,
-              output: Process::Redirect::Inherit,
-              error: Process::Redirect::Inherit)
-            unless status.success?
-              fail "failed to run #{name}"
-            end
-          else
-            Process.exec(command: "podman", args: args)
-          end
-        end
+        Actuator.new(config, opts.remote, opts.show).push(args.target, opts.remote)
       end
     end
     sub "update" do
