@@ -64,13 +64,13 @@ class CLI < Clim
       usage "pod build [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
       option "-s", "--show", type: Bool, desc: "Show command only", default: false
-      option "-i", "--interactive", type: Bool, desc: "Watch and rebuild on FS events", default: false
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       argument "target", type: String, desc: "target to build", required: false
 
       run do |opts, args|
         config = load_config!(opts.config)
-        Actuator.new(config, opts.remote, opts.show).ibuild(args.target)
+        actuator = Actuator.new(config, opts.remote, opts.show)
+        actuator.build(args.target)
       end
     end
     sub "run" do

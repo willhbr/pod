@@ -129,6 +129,9 @@ module Config
     getter interactive : Bool = false
     getter autoremove : Bool = true
 
+    # convenience opts
+    getter pull_latest : Bool = false
+
     @[YAML::Field(key: "bind-mounts")]
     getter bind_mounts = Hash(String, String).new
     getter volumes = Hash(String, String).new

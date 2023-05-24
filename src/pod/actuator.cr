@@ -15,62 +15,6 @@ class Actuator
     end
   end
 
-  class IBuilder < Watcher
-    @process : Process? = nil
-
-    def initialize(@actuator : Actuator, @images : Array({String, Config::Image}))
-      @gitignore = Gitignore.new
-      @images.each do |_, img|
-        p = Path[img.context] / ".gitignore"
-        if File.exists? p
-          @gitignore.add p
-        end
-      end
-    end
-
-    def run
-      @images.each do |name, image|
-        args = image.to_command(remote: @actuator.@remote)
-        @process = process = run(args)
-        status = process.wait
-        @process = nil
-        if status.success?
-          puts "built #{name} successfully"
-        else
-          puts "failed to build #{name}"
-          break
-        end
-        return unless self.running?
-      end
-    end
-
-    def good_change?(path : Path) : Bool
-      !@gitignore.includes? path
-    end
-
-    private def run(args : Enumerable(String)) : Process
-      Process.new(command: "podman", args: args,
-        input: Process::Redirect::Close, output: Process::Redirect::Inherit,
-        error: Process::Redirect::Inherit)
-    end
-
-    def handle_interrupt
-      @process.try &.signal Signal::INT
-    end
-  end
-
-  def ibuild(target : String?)
-    images = @config.get_images(target)
-    ib = IBuilder.new(self, images)
-    Signal::INT.trap do
-      ib.interrupt
-    rescue ex
-      Log.error(exception: ex) { "Interrupt failed" }
-    end
-    ib.watch(images.map { |_, i| i.context })
-    Signal::INT.reset
-  end
-
   def run(target : String?, detached : Bool?, extra_args : Enumerable(String)?)
     containers = @config.get_containers(target)
     multiple = containers.size > 1
@@ -78,8 +22,11 @@ class Actuator
       detached = true
     end
     containers.each do |name, container|
+      if container.pull_latest
+        run({"pull", container.image})
+      end
       args = container.to_command(extra_args, detached: detached, remote: @remote)
-      status = run(args)
+      status = run(args, exec: !multiple)
       unless status.success?
         fail "failed to run #{name}"
       end
