@@ -82,7 +82,6 @@ module Config
     getter push : String? = nil
     getter context : String = "."
     getter args = KVMapping(String, String).new
-    @[YAML::Field(key: "build-args")]
     getter build_args = KVMapping(String, String).new
 
     getter connection : String? = nil
@@ -120,9 +119,7 @@ module Config
     getter connection : String? = nil
 
     getter args = KVMapping(String, String).new
-    @[YAML::Field(key: "run-args")]
     getter run_args = KVMapping(String, String).new
-    @[YAML::Field(key: "cmd-args")]
     getter cmd_args = Array(String).new
 
     # options that set other options
@@ -132,7 +129,6 @@ module Config
     # convenience opts
     getter pull_latest : Bool = false
 
-    @[YAML::Field(key: "bind-mounts")]
     getter bind_mounts = Hash(String, String).new
     getter volumes = Hash(String, String).new
     getter ports = Hash(Int32, String).new

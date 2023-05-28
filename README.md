@@ -35,12 +35,12 @@ containers:
   website:
     name: willhbr.github.io
     image: willhbr.github.io:latest
-    bind-mounts:
+    bind_mounts:
       .: /src
     ports:
       4000: 4000
     interactive: true
     autoremove: true
-    run-args:
+    run_args:
       userns: ""
 ```
