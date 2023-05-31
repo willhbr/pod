@@ -80,6 +80,7 @@ module Config
     getter tag : String? = nil
     getter from : String
     getter push : String? = nil
+    getter auto_push : Bool = false
     getter context : String = "."
     getter args = KVMapping(String, String).new
     getter build_args = KVMapping(String, String).new
@@ -121,6 +122,8 @@ module Config
     getter args = KVMapping(String, String).new
     getter run_args = KVMapping(String, String).new
     getter cmd_args = Array(String).new
+
+    getter environment = Hash(String, String).new
 
     # options that set other options
     getter interactive : Bool = false
@@ -177,6 +180,10 @@ module Config
       end
       @ports.each do |host, cont|
         run_args["publish"] = "#{host}:#{cont}"
+      end
+
+      @environment.each do |name, value|
+        run_args["env"] = "#{name}=#{value}"
       end
 
       run_args["name"] = @name

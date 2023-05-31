@@ -12,6 +12,9 @@ class Actuator
       unless status.success?
         fail "failed to build #{name}"
       end
+      if image.auto_push
+        push_internal(name, image, false)
+      end
     end
   end
 
@@ -33,25 +36,29 @@ class Actuator
     end
   end
 
-  def push(target : String?, remote : String?)
+  def push(target : String?)
     images = @config.get_images(target)
     multiple = images.size > 1
     images.each do |name, image|
-      unless tag = image.tag
-        raise "can't push image with no tag: #{name}"
-      end
-      unless push = image.push
-        raise "can't push image with no push destination: #{name}"
-      end
-      if remote
-        args = {"--remote=true", "--connection=#{remote}", "push", tag, push}
-      else
-        args = {"push", tag, push}
-      end
-      status = run(args: args, exec: !multiple)
-      unless status.success?
-        fail "failed to run #{name}"
-      end
+      push_internal(name, image, !multiple)
+    end
+  end
+
+  private def push_internal(name, image, exec = false)
+    unless tag = image.tag
+      raise "can't push image with no tag: #{name}"
+    end
+    unless push = image.push
+      raise "can't push image with no push destination: #{name}"
+    end
+    if remote = @remote
+      args = {"--remote=true", "--connection=#{remote}", "push", tag, push}
+    else
+      args = {"push", tag, push}
+    end
+    status = run(args: args, exec: exec)
+    unless status.success?
+      fail "failed to run #{name}"
     end
   end
 

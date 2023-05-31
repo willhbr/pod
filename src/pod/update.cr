@@ -72,7 +72,7 @@ module Podman
         # All images have --rm so no need to delete
         start_container(config)
       else
-        Log.info { "Container is running latest image and config, no need to update" }
+        Log.info { "Container is running latest image and config, no need to update. Last updated: #{Time.utc - container.created} ago." }
       end
     end
 

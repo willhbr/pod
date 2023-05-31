@@ -27,9 +27,14 @@ def load_config(file) : Config::File?
 end
 
 def load_config!(file) : Config::File
-  if conf = load_config(file)
-    return conf
+  begin
+    if conf = load_config(file)
+      return conf
+    end
+  rescue ex : YAML::ParseException
+    fail "Failed to parse config file: #{ex.message}"
   end
+
   fail "Config file #{file || DEFAULT_CONFIG_FILE} does not exist"
 end
 
@@ -111,7 +116,7 @@ class CLI < Clim
 
       run do |opts, args|
         config = load_config!(opts.config)
-        Actuator.new(config, opts.remote, opts.show).push(args.target, opts.remote)
+        Actuator.new(config, opts.remote, opts.show).push(args.target)
       end
     end
     sub "update" do
