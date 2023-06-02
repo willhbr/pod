@@ -1,0 +1,59 @@
+# If no target is given, the default defined here will be used
+defaults:
+  build: everything
+  run: dev
+  update: prod
+
+# Groups of targets can be used in place of single targets
+# :all can be used to reference all targets
+groups:
+  everything:
+    - dev
+    - prod
+
+images:
+  dev:
+    tag: <%= project %>:dev-latest
+    from: Containerfile.dev
+  prod:
+    tag: <%= project %>:prod-latest
+    from: Containerfile.prod
+    # allow pushing to this registry with `pod push prod`
+    push: my-registry/<%= project %>:prod-latest
+    # Set this to true to push after each build
+    auto_push: false
+
+containers:
+  dev:
+    name: <%= project %>-dev
+    image: <%= project %>:dev-latest
+    interactive: true
+    autoremove: true
+    ports:
+      3001: 4000
+    bind_mounts:
+      # binding the source directory lets us re-run changes without rebuilding
+      src: /src/src
+    flags:
+      # this will be passed as --flag=value
+      flag: value
+    args:
+      # This will be passed after the flags
+      - positional
+
+  prod:
+    name: <%= project %>-prod
+    image: my-registry/<%= project %>:prod-latest
+    remote: my-other-computer
+    # Pull the latest image from the registry before running it
+    pull_latest: true
+    interactive: false
+    autoremove: true
+    ports:
+      3002: 4000
+    environment:
+      SECRET_KEY: secret value
+    flags:
+      flag: value
+    args:
+      - prod_value

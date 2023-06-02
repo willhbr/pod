@@ -2,12 +2,9 @@ require "yaml"
 require "./pod/*"
 require "clim"
 require "geode"
+require "ecr"
 
-DEFAULT_CONFIG_FILE   = "pods.yaml"
-EXAMPLE_CONTAINERFILE = "\
-FROM alpine:latest
-ENTRYPOINT sh
-"
+DEFAULT_CONFIG_FILE = "pods.yaml"
 
 def fail(msg) : NoReturn
   puts msg
@@ -172,16 +169,20 @@ class CLI < Clim
       usage "pod init"
 
       run do |opts, args|
-        config = Config::File.new(Config::Defaults.new(build: "example", run: "example"))
-        config.images["example"] = Config::Image.new("Containerfile", "pod-example:latest")
-        container = Config::Container.new("pod-example", "pod-example:latest")
-        container.args << "sh"
-        config.containers["example"] = container
-        File.open(DEFAULT_CONFIG_FILE, "w") { |f| config.to_yaml(f) }
-        unless File.exists? "Containerfile"
-          File.write "Containerfile", EXAMPLE_CONTAINERFILE
+        project = Path[Dir.current].basename
+        unless File.exists? DEFAULT_CONFIG_FILE
+          File.open(DEFAULT_CONFIG_FILE, "w") do |f|
+            ECR.embed("src/template/pods.yaml", f)
+          end
         end
-        puts "Initialised pod config files in #{File.basename(Dir.current)}"
+        unless File.exists? "Containerfile.dev"
+          File.write "Containerfile.dev", ECR.render("src/template/Containerfile.dev")
+        end
+        unless File.exists? "Containerfile.prod"
+          File.write "Containerfile.prod", ECR.render("src/template/Containerfile.prod")
+        end
+        puts "Initialised pod config files in #{project}."
+        puts "Please edit to taste."
       end
     end
   end
