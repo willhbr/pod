@@ -57,6 +57,7 @@ class CLI < Clim
       if conf = load_config(nil)
         puts "pod build => pod build #{conf.defaults.build}" if conf.defaults.build
         puts "pod run => pod run #{conf.defaults.build}" if conf.defaults.run
+        puts "pod update => pod run #{conf.defaults.update}" if conf.defaults.update
         puts
         puts "pod build #{conf.images.keys.join(", ")}" unless conf.images.size.zero?
         puts "pod run #{conf.containers.keys.join(", ")}" unless conf.containers.size.zero?
@@ -128,7 +129,7 @@ class CLI < Clim
 
       run do |opts, args|
         config = load_config!(opts.config)
-        containers = config.get_containers(args.target)
+        containers = config.get_containers(args.target || config.defaults.update)
         manager = Podman::Manager.new("podman") do |config|
           config.to_command(cmd_args: nil, detached: true, remote: opts.remote)
         end
@@ -171,10 +172,10 @@ class CLI < Clim
       usage "pod init"
 
       run do |opts, args|
-        config = Config::File.new(Config::Defaults.new("example", "example"))
+        config = Config::File.new(Config::Defaults.new(build: "example", run: "example"))
         config.images["example"] = Config::Image.new("Containerfile", "pod-example:latest")
         container = Config::Container.new("pod-example", "pod-example:latest")
-        container.cmd_args << "sh"
+        container.args << "sh"
         config.containers["example"] = container
         File.open(DEFAULT_CONFIG_FILE, "w") { |f| config.to_yaml(f) }
         unless File.exists? "Containerfile"

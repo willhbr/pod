@@ -23,7 +23,7 @@ module Config
   class File
     include YAML::Serializable
     include YAML::Serializable::Strict
-    getter defaults = Defaults.new(nil, nil)
+    getter defaults = Defaults.new
     getter images = Hash(String, Config::Image).new
     getter containers = Hash(String, Config::Container).new
     getter groups = Hash(String, Set(String)).new
@@ -69,8 +69,9 @@ module Config
     include YAML::Serializable::Strict
     getter build : String? = nil
     getter run : String? = nil
+    getter update : String? = nil
 
-    def initialize(@build, @run)
+    def initialize(*, @build = nil, @run = nil, @update = nil)
     end
   end
 
@@ -82,27 +83,27 @@ module Config
     getter push : String? = nil
     getter auto_push : Bool = false
     getter context : String = "."
-    getter args = KVMapping(String, String).new
-    getter build_args = KVMapping(String, String).new
+    getter podman_flags = KVMapping(String, String).new
+    getter build_flags = KVMapping(String, String).new
 
-    getter connection : String? = nil
+    getter remote : String? = nil
 
     def initialize(@from, @tag)
     end
 
     def to_command(remote = nil) : Array(String)
       args = Array(String).new
-      podman_args = @args.dup
+      podman_args = @podman_flags.dup
       if rem = remote
         podman_args.replace "remote", "true"
         podman_args.replace "connection", rem
-      elsif con = @connection
+      elsif con = @remote
         podman_args.replace "remote", "true"
         podman_args.replace "connection", con
       end
       args.concat Config.as_args(podman_args)
       args << "build"
-      build_args = @build_args.dup
+      build_args = @build_flags.dup
       if t = @tag
         build_args.replace "tag", t
       end
@@ -119,9 +120,12 @@ module Config
     getter image : String
     getter connection : String? = nil
 
-    getter args = KVMapping(String, String).new
-    getter run_args = KVMapping(String, String).new
-    getter cmd_args = Array(String).new
+    # for podman
+    getter podman_flags = KVMapping(String, String).new
+    getter run_flags = KVMapping(String, String).new
+    # for the container
+    getter flags = KVMapping(String, String).new
+    getter args = Array(String).new
 
     getter environment = Hash(String, String).new
 
@@ -136,7 +140,7 @@ module Config
     getter volumes = Hash(String, String).new
     getter ports = Hash(Int32, String).new
 
-    getter connection : String? = nil
+    getter remote : String? = nil
 
     def initialize(@name, @image)
     end
@@ -147,17 +151,17 @@ module Config
       include_hash = true, remote = nil
     )
       args = Array(String).new
-      podman_args = @args.dup
+      podman_args = @podman_flags.dup
       if rem = remote
         podman_args.replace "remote", "true"
         podman_args.replace "connection", rem
-      elsif con = @connection
+      elsif con = @remote
         podman_args.replace "remote", "true"
         podman_args.replace "connection", con
       end
       args.concat Config.as_args(podman_args)
       args << "run"
-      run_args = @run_args.dup
+      run_args = @run_flags.dup
       do_interactive = @interactive
       if detached != nil
         do_interactive = !detached
@@ -187,6 +191,7 @@ module Config
       end
 
       run_args["name"] = @name
+      run_args["hostname"] = @name
       if include_hash
         run_args["label"] = "pod_hash=" + pod_hash(cmd_args)
       end
@@ -196,7 +201,8 @@ module Config
       if ca = cmd_args
         args.concat ca
       else
-        args.concat @cmd_args
+        args.concat Config.as_args(@flags)
+        args.concat @args
       end
       args
     end
