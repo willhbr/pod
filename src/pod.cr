@@ -139,6 +139,23 @@ class CLI < Clim
         end
       end
     end
+    sub "diff" do
+      desc "preview updates to running containers"
+      usage "pod diff [options]"
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
+      argument "target", type: String, desc: "target to run", required: false
+
+      run do |opts, args|
+        config = load_config!(opts.config)
+        containers = config.get_containers(args.target || config.defaults.update)
+        manager = Podman::Manager.new("podman", STDOUT) do |config|
+          config.to_command(cmd_args: nil, detached: true, remote: opts.remote)
+        end
+        configs = containers.map { |c| c[1] }
+        manager.diff_containers(configs)
+      end
+    end
     sub "shell" do
       desc "run a shell in a container"
       usage "pod shell <container>"

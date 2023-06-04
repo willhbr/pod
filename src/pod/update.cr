@@ -123,7 +123,7 @@ module Podman
     end
 
     private def diff_container(config, container_info)
-      args = ["podman"] + @get_args.call(config).map { |c| Process.quote(c) }
+      args = [@executable] + @get_args.call(config).map { |c| Process.quote(c) }
       if container_info.nil?
         puts "start: #{config.name}".colorize(:green)
         print_args('+', :green, args)
