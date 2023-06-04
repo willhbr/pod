@@ -72,7 +72,7 @@ class CLI < Clim
 
       run do |opts, args|
         config = load_config!(opts.config)
-        actuator = Actuator.new(config, opts.remote, opts.show)
+        actuator = Actuator.new(config, opts.remote, opts.show, STDOUT)
         actuator.build(args.target)
       end
     end
@@ -101,7 +101,7 @@ class CLI < Clim
         else
           detached = nil
         end
-        Actuator.new(config, opts.remote, opts.show).run(args.target, detached, extra_args)
+        Actuator.new(config, opts.remote, opts.show, STDOUT).run(args.target, detached, extra_args)
       end
     end
     sub "push" do
@@ -114,7 +114,7 @@ class CLI < Clim
 
       run do |opts, args|
         config = load_config!(opts.config)
-        Actuator.new(config, opts.remote, opts.show).push(args.target)
+        Actuator.new(config, opts.remote, opts.show, STDOUT).push(args.target)
       end
     end
     sub "update" do
@@ -128,7 +128,7 @@ class CLI < Clim
       run do |opts, args|
         config = load_config!(opts.config)
         containers = config.get_containers(args.target || config.defaults.update)
-        manager = Podman::Manager.new("podman") do |config|
+        manager = Podman::Manager.new("podman", STDOUT) do |config|
           config.to_command(cmd_args: nil, detached: true, remote: opts.remote)
         end
         configs = containers.map { |c| c[1] }

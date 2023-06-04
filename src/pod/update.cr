@@ -4,7 +4,8 @@ require "diff"
 
 module Podman
   class Manager
-    def initialize(@executable : String, &@get_args : Proc(Config::Container, Array(String)))
+    def initialize(@executable : String, @io : IO,
+                   &@get_args : Proc(Config::Container, Array(String)))
     end
 
     def run(args : Enumerable(String)) : String
@@ -20,25 +21,23 @@ module Podman
     end
 
     def get_containers : Array(Podman::Container)
-      Log.info { "Listing containers" }
       Array(Podman::Container).from_json(run(%w(container ls -a --format json)))
     end
 
     def start_container(config : Config::Container) : String
       args = @get_args.call(config)
-      Log.info { "Starting container: #{Process.quote args}" }
+      @io.puts "Starting container: #{Process.quote args}"
       output = run(args)
-      Log.info { "Run container: #{output}" }
+      @io.puts "Run container: #{output}"
       return output
     end
 
     def stop_container(container : Podman::Container)
-      Log.info { "Stopping container: #{container.name}" }
+      @io.puts "Stopping container: #{container.name}"
       run({"stop", container.id})
     end
 
     def remove_container(container : Podman::Container)
-      Log.info { "Removing container: #{container.name}" }
       run({"rm", container.id})
     end
 
@@ -82,33 +81,32 @@ module Podman
     def update_container(config : Config::Container, container : Podman::Container)
       case get_update_reason(config, container)
       when UpdateReason::Paused
-        Log.info { "Container is paused, not updating: #{config.name}" }
+        @io.puts "Container is paused, not updating: #{config.name}"
       when UpdateReason::Exited
-        Log.info { "Container is exited, just starting it again" }
+        @io.puts "Container is exited, just starting it again"
         remove_container(container)
         start_container(config)
       when UpdateReason::DifferentImage
-        Log.info { "Container is running different image to pulled #{config.image}" }
+        @io.puts "Container is running different image to pulled #{config.image}"
         stop_container(container)
         start_container(config)
       when UpdateReason::NewConfigHash
-        Log.info { "Container config has changed, updating..." }
+        @io.puts "Container config has changed, updating..."
         stop_container(container)
         start_container(config)
       when UpdateReason::NoUpdate
-        Log.info { "Container is running latest image and config, no need to update. Last updated: #{Time.utc - container.created} ago." }
+        @io.puts "Container is running latest image and config, no need to update. Last updated: #{Time.utc - container.created} ago."
       end
     end
 
     def update_containers(configs : Array(Config::Container))
-      Log.info { "Updating containers" }
       existing_containers = self.get_containers.to_h { |c| {c.name, c} }
       if Set(String).new(configs.map(&.name)).size != configs.size
         raise "container names must be unique for update to work"
       end
       configs.each do |config|
         begin
-          Log.info { "Looking at #{config.name}" }
+          @io.puts "Looking at #{config.name}"
           if container = existing_containers.delete(config.name)
             update_container(config, container)
           else
@@ -196,7 +194,6 @@ module Podman
     end
 
     def diff_containers(configs : Array(Config::Container))
-      Log.info { "diffing containers" }
       existing_containers = self.get_containers.to_h { |c| {c.name, c} }
       if Set(String).new(configs.map(&.name)).size != configs.size
         raise "container names must be unique for update to work"

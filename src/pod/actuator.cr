@@ -1,8 +1,5 @@
-require "inotify"
-require "./watcher"
-
 class Actuator
-  def initialize(@config : Config::File, @remote : String?, @show : Bool)
+  def initialize(@config : Config::File, @remote : String?, @show : Bool, @io : IO)
   end
 
   def build(target : String?)
@@ -64,7 +61,7 @@ class Actuator
 
   private def run(args : Enumerable(String), exec : Bool = false) : Process::Status
     if @show
-      puts "podman #{Process.quote(args)}"
+      @io.puts "podman #{Process.quote(args)}"
       return Process::Status.new(0)
     elsif exec
       Process.exec(command: "podman", args: args)
