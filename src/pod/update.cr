@@ -122,38 +122,40 @@ module Podman
       Array(Podman::Container::Inspect).from_json(run(%w(container inspect) + ids))
     end
 
-    private def diff_container(config, container_info)
+    private def diff_container(config, container_info) : Bool
       args = [@executable] + @get_args.call(config).map { |c| Process.quote(c) }
       if container_info.nil?
         puts "start: #{config.name}".colorize(:green)
-        print_args('+', :green, args)
-        return
+        print_diff([] of String, args)
+        return true
       end
       container = container_info[0]
       inspect = container_info[1]
 
       case self.get_update_reason(config, container)
       when UpdateReason::Paused
-        puts "ignoring: #{config.name} (container paused)".colorize(:yellow)
-        return
+        @io.puts "ignoring: #{config.name} (container paused)".colorize(:yellow)
+        return false
       when UpdateReason::Exited
-        puts "restart: #{config.name} (currently exited)".colorize(:green)
+        @io.puts "restart: #{config.name} (currently exited)".colorize(:green)
       when UpdateReason::DifferentImage
-        puts "update: #{config.name} (new image available)".colorize(:blue)
+        @io.puts "update: #{config.name} (new image available)".colorize(:blue)
       when UpdateReason::NewConfigHash
-        puts "update: #{config.name} (arguments changed)".colorize(:blue)
+        @io.puts "update: #{config.name} (arguments changed)".colorize(:blue)
       when UpdateReason::NoUpdate
-        puts "no update: #{config.name}"
-        return
+        @io.puts "no update: #{config.name}"
+        return false
       end
 
       command = inspect.config.create_command.map { |c| Process.quote(c) }
+      command.reject! { |a| a.starts_with? "--label=pod_hash=" }
+      args.reject! { |a| a.starts_with? "--label=pod_hash=" }
       if command == args
-        puts "no change in arguments"
-        print_args('=', :blue, args)
-      else
-        print_diff(command, args)
+        @io.puts "no change in arguments"
       end
+      print_diff(command, args)
+      @io.puts "Container started at #{container.started_at} (up #{Time.utc - container.started_at})"
+      return true
     end
 
     private def to_lines(lines)
@@ -169,57 +171,46 @@ module Podman
     private def print_diff(a, b)
       diff = Diff::MyersLinear.diff(to_lines(a), to_lines(b))
       diff.each do |edit|
-        print_edit(edit)
+        tag = case edit.type
+              when Diff::Edit::Type::Delete
+                '-'
+              when Diff::Edit::Type::Insert
+                '+'
+              else
+                ' '
+              end
+        color = case edit.type
+                when Diff::Edit::Type::Delete
+                  :red
+                when Diff::Edit::Type::Insert
+                  :green
+                else
+                  :default
+                end
+        @io.puts "#{tag} #{edit.text.rstrip}".colorize(color)
       end
     end
 
-    private def print_edit(edit)
-      tag = case edit.type
-            when Diff::Edit::Type::Delete
-              '-'
-            when Diff::Edit::Type::Insert
-              '+'
-            else
-              ' '
-            end
-      color = case edit.type
-              when Diff::Edit::Type::Delete
-                :red
-              when Diff::Edit::Type::Insert
-                :green
-              else
-                :default
-              end
-      puts "#{tag} #{edit.text.rstrip}".colorize(color)
-    end
-
-    def diff_containers(configs : Array(Config::Container))
+    def diff_containers(configs : Array(Config::Container)) : Bool
       existing_containers = self.get_containers.to_h { |c| {c.name, c} }
       if Set(String).new(configs.map(&.name)).size != configs.size
         raise "container names must be unique for update to work"
       end
       inspections = self.inspect_containers(existing_containers.values.map &.id).to_h { |i| {i.id, i} }
+      any_changes = false
       configs.each do |config|
         if container = existing_containers.delete(config.name)
           unless insp = inspections.delete(container.id)
             raise "did not find inspect result for #{config.name}"
           end
-          diff_container(config, {container, insp})
+          ch = diff_container(config, {container, insp})
         else
-          diff_container(config, nil)
+          ch = diff_container(config, nil)
         end
-        puts "---"
+        any_changes ||= ch
+        @io.puts "---"
       end
-    end
-
-    private def print_args(char, color, args)
-      args.each_with_index do |arg, idx|
-        if idx == 0
-          puts "#{char} #{arg}".colorize(color)
-        else
-          puts "#{char}   #{arg}".colorize(color)
-        end
-      end
+      any_changes
     end
   end
 end

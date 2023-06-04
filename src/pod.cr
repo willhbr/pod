@@ -133,7 +133,12 @@ class CLI < Clim
         end
         configs = containers.map { |c| c[1] }
         if opts.diff
-          manager.diff_containers(configs)
+          if manager.diff_containers(configs)
+            print "update? [y/N] "
+            if (inp = gets) && inp.chomp.downcase == "y"
+              manager.update_containers(configs)
+            end
+          end
         else
           manager.update_containers(configs)
         end
