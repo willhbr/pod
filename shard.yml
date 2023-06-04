@@ -17,3 +17,5 @@ dependencies:
     github: at-grandpa/clim
   geode:
     github: willhbr/geode
+  diff:
+    github: watzon/diff

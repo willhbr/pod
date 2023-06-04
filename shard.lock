@@ -4,11 +4,15 @@ shards:
     git: https://github.com/at-grandpa/clim.git
     version: 0.17.1
 
+  cor:
+    git: https://github.com/watzon/cor.git
+    version: 0.1.0+git.commit.9c9e51ac6168f3bd4fdc51d679b65de09ef76cac
+
+  diff:
+    git: https://github.com/watzon/diff.git
+    version: 0.1.0+git.commit.1917527708e833b197a6bb90c02744bca46df883
+
   geode:
     git: https://github.com/willhbr/geode.git
     version: 0.1.0+git.commit.035c66b53c89e1202076a2c9d4660cf7156c3eb4
-
-  inotify:
-    git: https://github.com/petoem/inotify.cr.git
-    version: 1.0.3
 

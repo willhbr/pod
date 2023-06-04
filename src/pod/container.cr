@@ -12,6 +12,8 @@ module Podman
       Configured
     end
 
+    @[JSON::Field(key: "Command")]
+    getter command : Array(String)
     @[JSON::Field(key: "Id")]
     getter id : String
     @[JSON::Field(key: "Image")]
@@ -54,5 +56,26 @@ module Podman
     def pod_hash : String
       self.labels["pod_hash"]? || ""
     end
+  end
+
+  class Container::Inspect
+    include JSON::Serializable
+    @[JSON::Field(key: "Id")]
+    getter id : String
+    @[JSON::Field(key: "Created")]
+    getter created : Time
+    @[JSON::Field(key: "Image")]
+    getter image : String
+    @[JSON::Field(key: "ImageName")]
+    getter image_name : String
+
+    class Config
+      include JSON::Serializable
+      @[JSON::Field(key: "CreateCommand")]
+      getter create_command : Array(String)
+    end
+
+    @[JSON::Field(key: "Config")]
+    getter config : Config
   end
 end

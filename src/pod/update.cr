@@ -1,5 +1,6 @@
 require "./config"
 require "./container"
+require "diff"
 
 module Podman
   class Manager
@@ -41,37 +42,60 @@ module Podman
       run({"rm", container.id})
     end
 
-    def update_container(config : Config::Container, container : Podman::Container)
-      Log.info { "Updating container #{config.name}" }
-      #      policy = config.update
+    enum UpdateReason
+      Paused
+      Exited
+      DifferentImage
+      NewConfigHash
+      NoUpdate
+    end
+
+    def get_update_reason(config : Config::Container, container : Podman::Container) : UpdateReason
       if container.state.paused?
-        Log.info { "Container is paused, not updating: #{config.name}" }
-        return
+        return UpdateReason::Paused
       end
       if container.state.exited?
-        Log.info { "Container is exited, just starting it again" }
-        remove_container(container)
-        start_container(config)
-        return
+        return UpdateReason::Exited
       end
 
       container_hash = container.pod_hash
       config_hash = config.pod_hash(args: nil)
 
       # check if image has updated
-      id = run({"pull", config.image, "--quiet"}).strip
+      if config.image.includes? '/'
+        # it's in a registry
+        id = run({"pull", config.image, "--quiet"}).strip
+      else
+        # it's local
+        id = run({"image", "ls", config.image, "--quiet"}).strip
+      end
 
       if id != container.image_id
+        return UpdateReason::DifferentImage
+      elsif config_hash != container_hash
+        return UpdateReason::NewConfigHash
+      else
+        return UpdateReason::NoUpdate
+      end
+    end
+
+    def update_container(config : Config::Container, container : Podman::Container)
+      case get_update_reason(config, container)
+      when UpdateReason::Paused
+        Log.info { "Container is paused, not updating: #{config.name}" }
+      when UpdateReason::Exited
+        Log.info { "Container is exited, just starting it again" }
+        remove_container(container)
+        start_container(config)
+      when UpdateReason::DifferentImage
         Log.info { "Container is running different image to pulled #{config.image}" }
         stop_container(container)
-        # All images have --rm so no need to delete
         start_container(config)
-      elsif config_hash != container_hash
+      when UpdateReason::NewConfigHash
         Log.info { "Container config has changed, updating..." }
         stop_container(container)
-        # All images have --rm so no need to delete
         start_container(config)
-      else
+      when UpdateReason::NoUpdate
         Log.info { "Container is running latest image and config, no need to update. Last updated: #{Time.utc - container.created} ago." }
       end
     end
@@ -92,6 +116,111 @@ module Podman
           end
         rescue ex
           Log.error { "Failed to update #{config.name}\n#{ex.message || ex.inspect_with_backtrace}" }
+        end
+      end
+    end
+
+    def inspect_containers(ids : Enumerable(String)) : Array(Podman::Container::Inspect)
+      Array(Podman::Container::Inspect).from_json(run(%w(container inspect) + ids))
+    end
+
+    private def diff_container(config, container_info)
+      args = ["podman"] + @get_args.call(config).map { |c| Process.quote(c) }
+      if container_info.nil?
+        puts "start: #{config.name}".colorize(:green)
+        print_args('+', :green, args)
+        return
+      end
+      container = container_info[0]
+      inspect = container_info[1]
+
+      case self.get_update_reason(config, container)
+      when UpdateReason::Paused
+        puts "ignoring: #{config.name} (container paused)".colorize(:yellow)
+        return
+      when UpdateReason::Exited
+        puts "restart: #{config.name} (currently exited)".colorize(:green)
+      when UpdateReason::DifferentImage
+        puts "update: #{config.name} (new image available)".colorize(:blue)
+      when UpdateReason::NewConfigHash
+        puts "update: #{config.name} (arguments changed)".colorize(:blue)
+      when UpdateReason::NoUpdate
+        puts "no update: #{config.name}"
+        return
+      end
+
+      command = inspect.config.create_command.map { |c| Process.quote(c) }
+      if command == args
+        puts "no change in arguments"
+        print_args('=', :blue, args)
+      else
+        print_diff(command, args)
+      end
+    end
+
+    private def to_lines(lines)
+      lines.map_with_index do |line, i|
+        if i == 0
+          Diff::Line.new(i + 1, line)
+        else
+          Diff::Line.new(i + 1, "  #{line}")
+        end
+      end
+    end
+
+    private def print_diff(a, b)
+      diff = Diff::MyersLinear.diff(to_lines(a), to_lines(b))
+      diff.each do |edit|
+        print_edit(edit)
+      end
+    end
+
+    private def print_edit(edit)
+      tag = case edit.type
+            when Diff::Edit::Type::Delete
+              '-'
+            when Diff::Edit::Type::Insert
+              '+'
+            else
+              ' '
+            end
+      color = case edit.type
+              when Diff::Edit::Type::Delete
+                :red
+              when Diff::Edit::Type::Insert
+                :green
+              else
+                :default
+              end
+      puts "#{tag} #{edit.text.rstrip}".colorize(color)
+    end
+
+    def diff_containers(configs : Array(Config::Container))
+      Log.info { "diffing containers" }
+      existing_containers = self.get_containers.to_h { |c| {c.name, c} }
+      if Set(String).new(configs.map(&.name)).size != configs.size
+        raise "container names must be unique for update to work"
+      end
+      inspections = self.inspect_containers(existing_containers.values.map &.id).to_h { |i| {i.id, i} }
+      configs.each do |config|
+        if container = existing_containers.delete(config.name)
+          unless insp = inspections.delete(container.id)
+            raise "did not find inspect result for #{config.name}"
+          end
+          diff_container(config, {container, insp})
+        else
+          diff_container(config, nil)
+        end
+        puts "---"
+      end
+    end
+
+    private def print_args(char, color, args)
+      args.each_with_index do |arg, idx|
+        if idx == 0
+          puts "#{char} #{arg}".colorize(color)
+        else
+          puts "#{char}   #{arg}".colorize(color)
         end
       end
     end

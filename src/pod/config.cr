@@ -20,9 +20,18 @@ module Config
     args.map { |k, v| "--#{k}=#{v}" }
   end
 
+  def self.json_flags(args : KVMapping(String, YAML::Any)) : Array(String)
+    args.map do |k, v|
+      if str = v.as_s?
+        "--#{k}=#{str}"
+      else
+        "--#{k}=#{v.to_json}"
+      end
+    end
+  end
+
   class File
     include YAML::Serializable
-    include YAML::Serializable::Strict
     getter defaults = Defaults.new
     getter images = Hash(String, Config::Image).new
     getter containers = Hash(String, Config::Container).new
@@ -124,7 +133,7 @@ module Config
     getter podman_flags = KVMapping(String, String).new
     getter run_flags = KVMapping(String, String).new
     # for the container
-    getter flags = KVMapping(String, String).new
+    getter flags = KVMapping(String, YAML::Any).new
     getter args = Array(String).new
 
     getter environment = Hash(String, String).new
@@ -201,7 +210,7 @@ module Config
       if ca = cmd_args
         args.concat ca
       else
-        args.concat Config.as_args(@flags)
+        args.concat Config.json_flags(@flags)
         args.concat @args
       end
       args

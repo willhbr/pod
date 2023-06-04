@@ -122,6 +122,7 @@ class CLI < Clim
       usage "pod update [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
+      option "-d", "--diff", type: Bool, desc: "Show a diff", default: false
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
@@ -130,7 +131,12 @@ class CLI < Clim
         manager = Podman::Manager.new("podman") do |config|
           config.to_command(cmd_args: nil, detached: true, remote: opts.remote)
         end
-        manager.update_containers(containers.map { |c| c[1] })
+        configs = containers.map { |c| c[1] }
+        if opts.diff
+          manager.diff_containers(configs)
+        else
+          manager.update_containers(configs)
+        end
       end
     end
     sub "shell" do
