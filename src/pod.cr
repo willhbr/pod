@@ -132,15 +132,17 @@ class CLI < Clim
           config.to_command(cmd_args: nil, detached: true, remote: opts.remote)
         end
         configs = containers.map { |c| c[1] }
+        updates = manager.calculate_updates(configs)
         if opts.diff
-          if manager.diff_containers(configs)
+          manager.print_changes(updates)
+          if updates.any? &.actionable?
             print "update? [y/N] "
             if (inp = gets) && inp.chomp.downcase == "y"
-              manager.update_containers(configs)
+              manager.update_containers(updates)
             end
           end
         else
-          manager.update_containers(configs)
+          manager.update_containers(updates)
         end
       end
     end
@@ -158,7 +160,8 @@ class CLI < Clim
           config.to_command(cmd_args: nil, detached: true, remote: opts.remote)
         end
         configs = containers.map { |c| c[1] }
-        manager.diff_containers(configs)
+        updates = manager.calculate_updates(configs)
+        manager.print_changes(updates)
       end
     end
     sub "shell" do

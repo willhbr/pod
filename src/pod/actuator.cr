@@ -5,10 +5,13 @@ class Actuator
   def build(target : String?)
     @config.get_images(target).each do |name, image|
       args = image.to_command(remote: @remote)
-      status = run(args)
-      unless status.success?
-        fail "failed to build #{name}"
+      t = Time.measure do
+        status = run(args)
+        unless status.success?
+          fail "failed to build #{name}"
+        end
       end
+      @io.puts "Built #{name} in #{t}".colorize(:blue)
       if image.auto_push
         push_internal(name, image, false)
       end
