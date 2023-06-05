@@ -218,7 +218,11 @@ module Config
 
     def pod_hash(args)
       dig = Digest::SHA1.new
-      self.to_command(args, include_hash: false).each do |arg|
+      self.to_command(
+        cmd_args: args,
+        # Always use an empty string here to keep hashes consistent even if
+        # it's running somewhere else
+        remote: "", include_hash: false).each do |arg|
         dig.update(arg)
       end
       dig.hexfinal

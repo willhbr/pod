@@ -3,48 +3,58 @@ require "./container"
 require "diff"
 
 class Podman::Manager
-  def initialize(@executable : String, @io : IO,
-                 &@get_args : Proc(Config::Container, Array(String)))
+  def initialize(@io : IO, @remote : String?)
   end
 
-  def run(args : Enumerable(String)) : String
-    process = Process.new(@executable, args: args,
+  def get_args(config)
+    config.to_command(remote: @remote, detached: true, cmd_args: nil)
+  end
+
+  def self.run(args : Enumerable(String), remote : String?) : String
+    if rem = remote
+      args = ["--remote=true", "--connection=#{rem}"].concat(args)
+    end
+
+    process = Process.new("podman", args: args,
       input: Process::Redirect::Close,
       output: Process::Redirect::Pipe, error: Process::Redirect::Pipe)
     output = process.output.gets_to_end.chomp
     error = process.error.gets_to_end.chomp
     unless process.wait.success?
-      raise "Command `#{@executable} #{Process.quote(args)}` failed: #{error}"
+      raise "Command `podman #{Process.quote(args)}` failed: #{error}"
     end
     output
   end
 
-  def get_containers : Array(Podman::Container)
-    Array(Podman::Container).from_json(run(%w(container ls -a --format json)))
+  def get_containers(remote : String?) : Array(Podman::Container)
+    Array(Podman::Container).from_json(Manager.run(
+      %w(container ls -a --format json), remote: remote))
   end
 
-  def inspect_containers(ids : Enumerable(String)) : Array(Podman::Container::Inspect)
-    Array(Podman::Container::Inspect).from_json(run(%w(container inspect) + ids))
+  def inspect_containers(ids : Enumerable(String), remote : String?) : Array(Podman::Container::Inspect)
+    return [] of Podman::Container::Inspect if ids.empty?
+    Array(Podman::Container::Inspect).from_json(
+      Manager.run(%w(container inspect) + ids, remote: remote))
   end
 
   def start_container(config : Config::Container) : String
-    args = @get_args.call(config)
-    @io.puts "Starting container: #{Process.quote args}"
-    output = run(args)
+    args = get_args(config)
+    @io.puts "Starting container:\n  #{Process.quote ["podman"] + args}"
+    output = Manager.run(args, remote: nil)
     @io.puts "Run container: #{output}"
     return output
   end
 
-  def stop_container(container : Podman::Container)
+  def stop_container(container : Podman::Container, remote)
     @io.puts "Stopping container: #{container.name}"
-    run({"stop", container.id})
+    Manager.run({"stop", container.id}, remote: remote)
   end
 
-  def remove_container(container : Podman::Container)
-    run({"rm", container.id})
+  def remove_container(container : Podman::Container, remote)
+    Manager.run({"rm", container.id}, remote: remote)
   end
 
-  def get_update_reason(config : Config::Container, container : Podman::Container) : UpdateReason
+  def get_update_reason(config : Config::Container, container : Podman::Container, remote) : UpdateReason
     if container.state.paused?
       return UpdateReason::Paused
     end
@@ -58,10 +68,12 @@ class Podman::Manager
     # check if image has updated
     if config.image.includes? '/'
       # it's in a registry
-      id = run({"pull", config.image, "--quiet"}).strip
+      id = Manager.run({"pull", config.image, "--quiet"}, remote: remote).strip
     else
       # it's local
-      id = run({"image", "ls", config.image, "--quiet"}).strip
+      id = Manager.run({"image", "ls", config.image, "--quiet", "--no-trunc"},
+        # I can't see an argument to remove the prefix :(
+        remote: remote).strip.lchop("sha256:")
     end
 
     if id != container.image_id
@@ -75,42 +87,43 @@ class Podman::Manager
 
   def update_containers(updates : Array(UpdateInfo))
     updates.each do |info|
+      name = info.config.name
       case info.reason
       when UpdateReason::Start
         start_container(info.config)
         next
       when UpdateReason::Paused
-        @io.puts "Container is paused, not updating: #{info.config.name}"
+        @io.puts "#{name} is paused, not updating.".colorize(:orange)
         next
       when UpdateReason::NoUpdate
-        @io.puts "Container up-to-date. Last updated: #{Time.utc - info.container.not_nil!.created} ago."
+        @io.puts "#{name} up-to-date. Last updated: #{Time.utc - info.container.not_nil!.created} ago."
         next
       when UpdateReason::Exited
-        @io.puts "Container is exited, just starting it again"
-        remove_container(info.container.not_nil!)
+        @io.puts "#{name} is exited, just starting it again"
+        remove_container(info.container.not_nil!, info.remote)
         start_container(info.config)
         next
       when UpdateReason::DifferentImage
-        @io.puts "Container is running different image to pulled #{info.config.image}"
+        @io.puts "#{name} is running different image to pulled #{info.config.image}"
       when UpdateReason::NewConfigHash
-        @io.puts "Container config has changed, updating..."
+        @io.puts "#{name} config has changed, updating..."
       end
-      stop_container(info.container.not_nil!)
+      stop_container(info.container.not_nil!, info.remote)
       start_container(info.config)
     end
   end
 
-  private def calculate_update(config, container) : UpdateInfo
+  private def calculate_update(config, container, remote) : UpdateInfo
     if container.nil?
-      return UpdateInfo.new(config, nil, UpdateReason::Start)
+      return UpdateInfo.new(config, nil, UpdateReason::Start, remote)
     end
 
-    reason = self.get_update_reason(config, container)
-    return UpdateInfo.new(config, container, reason)
+    reason = self.get_update_reason(config, container, remote)
+    return UpdateInfo.new(config, container, reason, remote)
   end
 
   def print_updates(info, inspections)
-    args = [@executable] + @get_args.call(info.config).map { |c| Process.quote(c) }
+    args = ["podman"] + self.get_args(info.config).map { |c| Process.quote(c) }
 
     if info.reason.start?
       puts "start: #{info.config.name}".colorize(:green)
@@ -151,8 +164,9 @@ class Podman::Manager
     getter config : Config::Container
     getter container : Podman::Container?
     getter reason : UpdateReason
+    getter remote : String?
 
-    def initialize(@config, @container, @reason)
+    def initialize(@config, @container, @reason, @remote)
     end
 
     def actionable?
@@ -169,26 +183,40 @@ class Podman::Manager
     NoUpdate
   end
 
-  def calculate_updates(configs : Array(Config::Container)) : Array(UpdateInfo)
-    existing_containers = self.get_containers.to_h { |c| {c.name, c} }
-    if Set(String).new(configs.map(&.name)).size != configs.size
+  def calculate_updates(input_configs : Array(Config::Container)) : Array(UpdateInfo)
+    if Set(String).new(input_configs.map(&.name)).size != input_configs.size
       raise "container names must be unique for update to work"
     end
+    configs_per_host = Hash(String?, Array(Config::Container)).new do |hash, key|
+      hash[key] = Array(Config::Container).new
+    end
+    input_configs.each do |config|
+      configs_per_host[@remote || config.remote] << config
+    end
     changes = Array(UpdateInfo).new
-    configs.each do |config|
-      container = existing_containers.delete(config.name)
-      changes << calculate_update(config, container)
+    configs_per_host.each do |host, configs|
+      existing_containers = self.get_containers(host).to_h { |c| {c.name, c} }
+      configs.each do |config|
+        container = existing_containers.delete(config.name)
+        changes << calculate_update(config, container, host)
+      end
     end
     changes
   end
 
-  def print_changes(updates : Array(UpdateInfo))
-    ids = updates.reject { |u| u.container.nil? }.map { |u| u.container.not_nil!.id }
-    inspections = self.inspect_containers(ids).to_h { |i| {i.id, i} }
-    updates.each_with_index do |info, idx|
-      @io.puts "---" unless idx.zero?
-
-      print_updates(info, inspections)
+  def print_changes(all_updates : Array(UpdateInfo))
+    updates_per_host = Hash(String?, Array(UpdateInfo)).new do |hash, key|
+      hash[key] = Array(UpdateInfo).new
+    end
+    all_updates.each do |update|
+      updates_per_host[update.remote] << update
+    end
+    updates_per_host.each do |host, updates|
+      ids = updates.reject { |u| u.container.nil? }.map { |u| u.container.not_nil!.id }
+      inspections = self.inspect_containers(ids, host).to_h { |i| {i.id, i} }
+      updates.each_with_index do |info, idx|
+        print_updates(info, inspections)
+      end
     end
   end
 

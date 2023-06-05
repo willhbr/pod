@@ -128,9 +128,7 @@ class CLI < Clim
       run do |opts, args|
         config = load_config!(opts.config)
         containers = config.get_containers(args.target || config.defaults.update)
-        manager = Podman::Manager.new("podman", STDOUT) do |config|
-          config.to_command(cmd_args: nil, detached: true, remote: opts.remote)
-        end
+        manager = Podman::Manager.new(STDOUT, opts.remote)
         configs = containers.map { |c| c[1] }
         updates = manager.calculate_updates(configs)
         if opts.diff
@@ -156,9 +154,7 @@ class CLI < Clim
       run do |opts, args|
         config = load_config!(opts.config)
         containers = config.get_containers(args.target || config.defaults.update)
-        manager = Podman::Manager.new("podman", STDOUT) do |config|
-          config.to_command(cmd_args: nil, detached: true, remote: opts.remote)
-        end
+        manager = Podman::Manager.new(STDOUT, opts.remote)
         configs = containers.map { |c| c[1] }
         updates = manager.calculate_updates(configs)
         manager.print_changes(updates)
