@@ -229,6 +229,19 @@ class Pod::CLI < Clim
         end
       end
     end
+
+    sub "targets" do
+      desc "targets as defined in config file, for shell completion"
+      usage "pod init"
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+
+      run do |opts, args|
+        wrap_exceptions do
+          config = Config.load_config!(opts.config)
+          puts Set(String).new(config.images.keys + config.containers.keys + config.groups.keys).join('\n')
+        end
+      end
+    end
   end
 end
 

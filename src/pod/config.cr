@@ -22,6 +22,7 @@ module Pod::Config
         return conf
       end
     rescue ex : YAML::ParseException
+      STDERR.puts ex.message
       raise Pod::Exception.new("Failed to parse config file #{file}", cause: ex)
     end
 
