@@ -2,19 +2,6 @@ require "digest/sha1"
 require "yaml"
 require "./kv_mapping"
 
-class YAML::Nodes::Scalar
-  @expanded : String? = nil
-
-  def value : String
-    @expanded ||= @value.gsub(/\$\w+/) do |key|
-      ENV[key[1...]]? || key
-    end
-  end
-end
-
-class String
-end
-
 module Pod::Config
   def self.load_config(file) : Config::File?
     paths = Path[Dir.current].parents
@@ -96,6 +83,10 @@ module Pod::Config
 
     def initialize(@defaults)
     end
+
+    protected def on_unknown_yaml_attribute(ctx, key, key_node, value_node)
+      Log.debug { "Got unknown yaml key in top-level: #{key}" }
+    end
   end
 
   class Defaults
@@ -119,6 +110,8 @@ module Pod::Config
     getter context : String = "."
     getter podman_flags = KVMapping(String, String).new
     getter build_flags = KVMapping(String, String).new
+    # for --build-arg
+    getter build_args = KVMapping(String, String).new
 
     getter remote : String? = nil
 
@@ -142,6 +135,9 @@ module Pod::Config
         build_args.replace "tag", t
       end
       build_args.replace "file", @from
+      @build_args.each do |name, value|
+        build_args["build-arg"] = "#{name}=#{value}"
+      end
       args.concat Config.as_args(build_args)
       args << @context
     end

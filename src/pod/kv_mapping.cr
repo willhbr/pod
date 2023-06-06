@@ -1,3 +1,5 @@
+require "yaml"
+
 module Pod::Config
   class KVMapping(K, V)
     @tuples : Array(Tuple(K, V))
@@ -25,7 +27,7 @@ module Pod::Config
       @tuples << {k, v}
     end
 
-    def replace(k : V, v : V)
+    def replace(k : K, v : V)
       @tuples.each_with_index do |tup, idx|
         if tup[0] == k
           @tuples[idx] = {k, v}
@@ -55,6 +57,16 @@ module Pod::Config
       KVMapping(K, V).new(@tuples.dup)
     end
 
-    delegate map, to_s, inspect, to: @tuples
+    delegate map, each, to_s, inspect, to: @tuples
+  end
+end
+
+class YAML::Nodes::Scalar
+  @expanded : String? = nil
+
+  def value : String
+    @expanded ||= @value.gsub(/\$\w+/) do |key|
+      ENV[key[1...]]? || key
+    end
   end
 end
