@@ -2,7 +2,7 @@ require "./config"
 require "./container"
 require "diff"
 
-class Podman::Manager
+class Pod::Updater
   def initialize(@io : IO, @remote : String?)
   end
 
@@ -15,43 +15,44 @@ class Podman::Manager
       args = ["--remote=true", "--connection=#{rem}"].concat(args)
     end
 
+    Log.debug { "Running: podman #{Process.quote(args)}" }
     process = Process.new("podman", args: args,
       input: Process::Redirect::Close,
       output: Process::Redirect::Pipe, error: Process::Redirect::Pipe)
     output = process.output.gets_to_end.chomp
     error = process.error.gets_to_end.chomp
     unless process.wait.success?
-      raise "Command `podman #{Process.quote(args)}` failed: #{error}"
+      raise Pod::Exception.new("Command `podman #{Process.quote(args)}` failed: #{error}")
     end
     output
   end
 
-  def get_containers(remote : String?) : Array(Podman::Container)
-    Array(Podman::Container).from_json(Manager.run(
-      %w(container ls -a --format json), remote: remote))
+  def get_containers(names : Array(String), remote : String?) : Array(Podman::Container)
+    Array(Podman::Container).from_json(Updater.run(
+      %w(container ls -a --format json) + ["--filter=name=#{names.join('|')}"], remote: remote))
   end
 
   def inspect_containers(ids : Enumerable(String), remote : String?) : Array(Podman::Container::Inspect)
     return [] of Podman::Container::Inspect if ids.empty?
     Array(Podman::Container::Inspect).from_json(
-      Manager.run(%w(container inspect) + ids, remote: remote))
+      Updater.run(%w(container inspect) + ids, remote: remote))
   end
 
   def start_container(config : Config::Container) : String
     args = get_args(config)
-    @io.puts "Starting container:\n  #{Process.quote ["podman"] + args}"
-    output = Manager.run(args, remote: nil)
+    @io.puts "Starting #{config.name}"
+    output = Updater.run(args, remote: nil)
     @io.puts "Run container: #{output}"
     return output
   end
 
   def stop_container(container : Podman::Container, remote)
     @io.puts "Stopping container: #{container.name}"
-    Manager.run({"stop", container.id}, remote: remote)
+    Updater.run({"stop", container.id}, remote: remote)
   end
 
   def remove_container(container : Podman::Container, remote)
-    Manager.run({"rm", container.id}, remote: remote)
+    Updater.run({"rm", container.id}, remote: remote)
   end
 
   def get_update_reason(config : Config::Container, container : Podman::Container, remote) : UpdateReason
@@ -68,10 +69,12 @@ class Podman::Manager
     # check if image has updated
     if config.image.includes? '/'
       # it's in a registry
-      id = Manager.run({"pull", config.image, "--quiet"}, remote: remote).strip
+      Log.info { "Trying to pull new version of #{config.image}" }
+      id = Updater.run({"pull", config.image, "--quiet"}, remote: remote).strip
     else
       # it's local
-      id = Manager.run({"image", "ls", config.image, "--quiet", "--no-trunc"},
+      Log.info { "Getting ID of image #{config.image}" }
+      id = Updater.run({"image", "ls", config.image, "--quiet", "--no-trunc"},
         # I can't see an argument to remove the prefix :(
         remote: remote).strip.lchop("sha256:")
     end
@@ -108,7 +111,11 @@ class Podman::Manager
       when UpdateReason::NewConfigHash
         @io.puts "#{name} config has changed, updating..."
       end
-      stop_container(info.container.not_nil!, info.remote)
+      container = info.container.not_nil!
+      stop_container(container, info.remote)
+      unless container.auto_remove
+        remove_container(container, info.remote)
+      end
       start_container(info.config)
     end
   end
@@ -132,7 +139,7 @@ class Podman::Manager
     end
     container = info.container.not_nil!
     unless inspect = inspections.delete(container.id)
-      raise "did not find inspect result for #{info.config.name}"
+      raise Pod::Exception.new("did not find inspect result for #{info.config.name}")
     end
 
     case info.reason
@@ -185,7 +192,7 @@ class Podman::Manager
 
   def calculate_updates(input_configs : Array(Config::Container)) : Array(UpdateInfo)
     if Set(String).new(input_configs.map(&.name)).size != input_configs.size
-      raise "container names must be unique for update to work"
+      raise Pod::Exception.new("container names must be unique for update to work")
     end
     configs_per_host = Hash(String?, Array(Config::Container)).new do |hash, key|
       hash[key] = Array(Config::Container).new
@@ -195,7 +202,7 @@ class Podman::Manager
     end
     changes = Array(UpdateInfo).new
     configs_per_host.each do |host, configs|
-      existing_containers = self.get_containers(host).to_h { |c| {c.name, c} }
+      existing_containers = self.get_containers(configs.map(&.name), host).to_h { |c| {c.name, c} }
       configs.each do |config|
         container = existing_containers.delete(config.name)
         changes << calculate_update(config, container, host)
@@ -233,22 +240,17 @@ class Podman::Manager
   private def print_diff(a, b)
     diff = Diff::MyersLinear.diff(to_lines(a), to_lines(b))
     diff.each do |edit|
-      tag = case edit.type
-            when Diff::Edit::Type::Delete
-              '-'
-            when Diff::Edit::Type::Insert
-              '+'
-            else
-              ' '
-            end
-      color = case edit.type
-              when Diff::Edit::Type::Delete
-                :red
-              when Diff::Edit::Type::Insert
-                :green
-              else
-                :default
-              end
+      case edit.type
+      when Diff::Edit::Type::Delete
+        tag = '-'
+        color = :red
+      when Diff::Edit::Type::Insert
+        tag = '+'
+        color = :green
+      else
+        tag = ' '
+        color = :default
+      end
       @io.puts "#{tag} #{edit.text.rstrip}".colorize(color)
     end
   end

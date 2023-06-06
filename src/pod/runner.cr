@@ -1,4 +1,4 @@
-class Actuator
+class Pod::Runner
   def initialize(@config : Config::File, @remote : String?, @show : Bool, @io : IO)
   end
 
@@ -8,7 +8,7 @@ class Actuator
       t = Time.measure do
         status = run(args)
         unless status.success?
-          fail "failed to build #{name}"
+          raise Pod::Exception.new("failed to build #{name}")
         end
       end
       @io.puts "Built #{name} in #{t}".colorize(:blue)
@@ -26,12 +26,15 @@ class Actuator
     end
     containers.each do |name, container|
       if container.pull_latest
-        run({"pull", container.image})
+        status = run({"pull", container.image})
+        unless status.success?
+          raise Pod::Exception.new("failed to pull latest #{container.image}")
+        end
       end
       args = container.to_command(extra_args, detached: detached, remote: @remote)
       status = run(args, exec: !multiple)
       unless status.success?
-        fail "failed to run #{name}"
+        raise Pod::Exception.new("failed to run #{name}")
       end
     end
   end
@@ -46,20 +49,23 @@ class Actuator
 
   private def push_internal(name, image, exec = false)
     unless tag = image.tag
-      raise "can't push image with no tag: #{name}"
+      raise Pod::Exception.new("can't push image with no tag: #{name}")
     end
     unless push = image.push
-      raise "can't push image with no push destination: #{name}"
+      raise Pod::Exception.new("can't push image with no push destination: #{name}")
     end
     if remote = @remote
       args = {"--remote=true", "--connection=#{remote}", "push", tag, push}
     else
       args = {"push", tag, push}
     end
+    start = Time.utc
     status = run(args: args, exec: exec)
     unless status.success?
-      fail "failed to run #{name}"
+      raise Pod::Exception.new("failed to push #{name}")
     end
+    t = Time.utc - start
+    @io.puts "Pushed #{name} in #{t}".colorize(:blue)
   end
 
   private def run(args : Enumerable(String), exec : Bool = false) : Process::Status

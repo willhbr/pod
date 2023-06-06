@@ -15,7 +15,32 @@ end
 class String
 end
 
-module Config
+module Pod::Config
+  def self.load_config(file) : Config::File?
+    paths = Path[Dir.current].parents
+    paths << Path[Dir.current]
+    paths.reverse.each do |path|
+      Dir.cd path
+      target = path / (file || DEFAULT_CONFIG_FILE)
+      if ::File.exists? target
+        Log.info { "Loading config from #{target}" }
+        return Config::File.from_yaml(::File.read(target))
+      end
+    end
+  end
+
+  def self.load_config!(file) : Config::File
+    begin
+      if conf = load_config(file)
+        return conf
+      end
+    rescue ex : YAML::ParseException
+      raise Pod::Exception.new("Failed to parse config file #{file}", cause: ex)
+    end
+
+    raise Pod::Exception.new("Config file #{file || DEFAULT_CONFIG_FILE} does not exist")
+  end
+
   def self.as_args(args : KVMapping(String, String)) : Array(String)
     args.map { |k, v| "--#{k}=#{v}" }
   end
@@ -50,7 +75,7 @@ module Config
       if group = @groups[target]?
         return group.map { |c| {c, @images[c]} }
       end
-      raise "no image or group matches #{target}"
+      raise Pod::Exception.new("no image or group matches #{target}")
     end
 
     def get_containers(target : String?) : Array({String, Config::Container})
@@ -66,7 +91,7 @@ module Config
       if group = @groups[target]?
         return group.map { |c| {c, @containers[c]} }
       end
-      raise "no container or group matches #{target}"
+      raise Pod::Exception.new("no container or group matches #{target}")
     end
 
     def initialize(@defaults)
@@ -140,7 +165,7 @@ module Config
 
     # options that set other options
     getter interactive : Bool = false
-    getter autoremove : Bool = true
+    getter autoremove : Bool = false
 
     # convenience opts
     getter pull_latest : Bool = false

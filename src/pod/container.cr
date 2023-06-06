@@ -1,6 +1,6 @@
 require "json"
 
-module Podman
+module Pod::Podman
   class Container
     include JSON::Serializable
     include YAML::Serializable
@@ -33,6 +33,8 @@ module Podman
     getter started_at : Time
     @[JSON::Field(key: "Created", converter: Time::EpochConverter)]
     getter created : Time
+    @[JSON::Field(key: "AutoRemove")]
+    getter auto_remove : Bool
 
     def uptime : Time::Span
       Time.utc - @started_at

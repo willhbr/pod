@@ -1,4 +1,4 @@
-module Config
+module Pod::Config
   class KVMapping(K, V)
     @tuples : Array(Tuple(K, V))
 

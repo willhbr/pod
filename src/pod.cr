@@ -4,64 +4,61 @@ require "clim"
 require "geode"
 require "ecr"
 
-DEFAULT_CONFIG_FILE = "pods.yaml"
-
-def fail(msg) : NoReturn
-  puts msg
-  exit 1
+module Pod
+  DEFAULT_CONFIG_FILE = "pods.yaml"
+  VERSION             = "0.1.0"
 end
 
-def load_config(file) : Config::File?
-  paths = Path[Dir.current].parents
-  paths << Path[Dir.current]
-  paths.reverse.each do |path|
-    Dir.cd path
-    target = path / (file || DEFAULT_CONFIG_FILE)
-    if File.exists? target
-      return Config::File.from_yaml(File.read(target))
+def exec_podman(args, remote = nil)
+  wrap_exceptions do
+    if remote
+      a = ["--remote=true", "--connection=#{remote}"]
+      a.concat(args)
+    else
+      a = args
     end
+    Process.exec(command: "podman", args: a)
   end
 end
 
-def load_config!(file) : Config::File
+def wrap_exceptions
   begin
-    if conf = load_config(file)
-      return conf
-    end
-  rescue ex : YAML::ParseException
-    fail "Failed to parse config file: #{ex.message}"
+    yield
+  rescue ex : Pod::Exception
+    STDERR.puts ex.message
+    Log.notice(exception: ex) { "Pod failed" }
+    exit 1
+  rescue ex : ::Exception
+    STDERR.puts ex.message
+    Log.error(exception: ex) { "Unexpected exception" }
+    exit 1
   end
-
-  fail "Config file #{file || DEFAULT_CONFIG_FILE} does not exist"
 end
 
-def run_podman(args, remote = nil)
-  if remote
-    a = ["--remote=true", "--connection=#{remote}"]
-    a.concat(args)
-  else
-    a = args
-  end
-  Process.exec(command: "podman", args: a)
-end
-
-class CLI < Clim
+class Pod::CLI < Clim
   main do
     desc "Pod CLI"
     usage "pod [sub_command] [arguments]"
+
+    version "pod version: #{Pod::VERSION}", short: "-v"
+    help short: "-h"
+
     run do |opts, args|
-      puts opts.help_string
-      if conf = load_config(nil)
-        puts "pod build => pod build #{conf.defaults.build}" if conf.defaults.build
-        puts "pod run => pod run #{conf.defaults.build}" if conf.defaults.run
-        puts "pod update => pod run #{conf.defaults.update}" if conf.defaults.update
-        puts
-        puts "pod build #{conf.images.keys.join(", ")}" unless conf.images.size.zero?
-        puts "pod run #{conf.containers.keys.join(", ")}" unless conf.containers.size.zero?
-        puts
-        puts "pod build|run :all,#{conf.groups.keys.join(", ")}" unless conf.groups.size.zero?
+      wrap_exceptions do
+        puts opts.help_string
+        if conf = Config.load_config(nil)
+          puts "pod build => pod build #{conf.defaults.build}" if conf.defaults.build
+          puts "pod run => pod run #{conf.defaults.build}" if conf.defaults.run
+          puts "pod update => pod run #{conf.defaults.update}" if conf.defaults.update
+          puts
+          puts "pod build #{conf.images.keys.join(", ")}" unless conf.images.size.zero?
+          puts "pod run #{conf.containers.keys.join(", ")}" unless conf.containers.size.zero?
+          puts
+          puts "pod build|run :all,#{conf.groups.keys.join(", ")}" unless conf.groups.size.zero?
+        end
       end
     end
+
     sub "build" do
       desc "build an image"
       usage "pod build [options]"
@@ -71,11 +68,14 @@ class CLI < Clim
       argument "target", type: String, desc: "target to build", required: false
 
       run do |opts, args|
-        config = load_config!(opts.config)
-        actuator = Actuator.new(config, opts.remote, opts.show, STDOUT)
-        actuator.build(args.target)
+        wrap_exceptions do
+          config = Config.load_config!(opts.config)
+          actuator = Runner.new(config, opts.remote, opts.show, STDOUT)
+          actuator.build(args.target)
+        end
       end
     end
+
     sub "run" do
       desc "run a container"
       usage "pod run [options]"
@@ -87,23 +87,26 @@ class CLI < Clim
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
-        extra_args = args.argv.skip_while { |a| a != "--" }.to_a
-        if extra_args.empty?
-          extra_args = nil
-        else
-          extra_args = extra_args[1...]
+        wrap_exceptions do
+          extra_args = args.argv.skip_while { |a| a != "--" }.to_a
+          if extra_args.empty?
+            extra_args = nil
+          else
+            extra_args = extra_args[1...]
+          end
+          config = Config.load_config!(opts.config)
+          if opts.detach
+            detached = true
+          elsif opts.interactive
+            detached = false
+          else
+            detached = nil
+          end
+          Runner.new(config, opts.remote, opts.show, STDOUT).run(args.target, detached, extra_args)
         end
-        config = load_config!(opts.config)
-        if opts.detach
-          detached = true
-        elsif opts.interactive
-          detached = false
-        else
-          detached = nil
-        end
-        Actuator.new(config, opts.remote, opts.show, STDOUT).run(args.target, detached, extra_args)
       end
     end
+
     sub "push" do
       desc "push an image to a registry"
       usage "pod push [options]"
@@ -113,10 +116,13 @@ class CLI < Clim
       argument "target", type: String, desc: "target to push", required: false
 
       run do |opts, args|
-        config = load_config!(opts.config)
-        Actuator.new(config, opts.remote, opts.show, STDOUT).push(args.target)
+        wrap_exceptions do
+          config = Config.load_config!(opts.config)
+          Runner.new(config, opts.remote, opts.show, STDOUT).push(args.target)
+        end
       end
     end
+
     sub "update" do
       desc "update a running container"
       usage "pod update [options]"
@@ -126,24 +132,27 @@ class CLI < Clim
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
-        config = load_config!(opts.config)
-        containers = config.get_containers(args.target || config.defaults.update)
-        manager = Podman::Manager.new(STDOUT, opts.remote)
-        configs = containers.map { |c| c[1] }
-        updates = manager.calculate_updates(configs)
-        if opts.diff
-          manager.print_changes(updates)
-          if updates.any? &.actionable?
-            print "update? [y/N] "
-            if (inp = gets) && inp.chomp.downcase == "y"
-              manager.update_containers(updates)
+        wrap_exceptions do
+          config = Config.load_config!(opts.config)
+          containers = config.get_containers(args.target || config.defaults.update)
+          manager = Updater.new(STDOUT, opts.remote)
+          configs = containers.map { |c| c[1] }
+          updates = manager.calculate_updates(configs)
+          if opts.diff
+            manager.print_changes(updates)
+            if updates.any? &.actionable?
+              print "update? [y/N] "
+              if (inp = gets) && inp.chomp.downcase == "y"
+                manager.update_containers(updates)
+              end
             end
+          else
+            manager.update_containers(updates)
           end
-        else
-          manager.update_containers(updates)
         end
       end
     end
+
     sub "diff" do
       desc "preview updates to running containers"
       usage "pod diff [options]"
@@ -152,14 +161,17 @@ class CLI < Clim
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
-        config = load_config!(opts.config)
-        containers = config.get_containers(args.target || config.defaults.update)
-        manager = Podman::Manager.new(STDOUT, opts.remote)
-        configs = containers.map { |c| c[1] }
-        updates = manager.calculate_updates(configs)
-        manager.print_changes(updates)
+        wrap_exceptions do
+          config = Config.load_config!(opts.config)
+          containers = config.get_containers(args.target || config.defaults.update)
+          manager = Updater.new(STDOUT, opts.remote)
+          configs = containers.map { |c| c[1] }
+          updates = manager.calculate_updates(configs)
+          manager.print_changes(updates)
+        end
       end
     end
+
     sub "shell" do
       desc "run a shell in a container"
       usage "pod shell <container>"
@@ -167,19 +179,21 @@ class CLI < Clim
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
 
       run do |opts, args|
-        run_podman({"exec", "-it", args.target, "sh", "-c",
-                    "if which bash > /dev/null 2>&1; then bash; else sh; fi"}, remote: opts.remote)
+        exec_podman({"exec", "-it", args.target, "sh", "-c",
+                     "if which bash > /dev/null 2>&1; then bash; else sh; fi"}, remote: opts.remote)
       end
     end
+
     sub "attach" do
       desc "attach to a container"
       usage "pod attach <container>"
       argument "target", type: String, desc: "target to run in", required: true
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       run do |opts, args|
-        run_podman({"attach", args.target}, remote: opts.remote)
+        exec_podman({"attach", args.target}, remote: opts.remote)
       end
     end
+
     sub "logs" do
       desc "show logs from a container"
       usage "pod logs <container>"
@@ -188,35 +202,40 @@ class CLI < Clim
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
 
       run do |opts, args|
-        run_podman({"logs", "--follow=#{opts.follow}", args.target}, remote: opts.remote)
+        exec_podman({"logs", "--follow=#{opts.follow}", args.target}, remote: opts.remote)
       end
     end
+
     sub "init" do
       desc "initialise a config file"
       usage "pod init"
 
       run do |opts, args|
-        project = Path[Dir.current].basename
-        unless File.exists? DEFAULT_CONFIG_FILE
-          File.open(DEFAULT_CONFIG_FILE, "w") do |f|
-            ECR.embed("src/template/pods.yaml", f)
+        wrap_exceptions do
+          project = Path[Dir.current].basename
+          unless File.exists? DEFAULT_CONFIG_FILE
+            File.open(DEFAULT_CONFIG_FILE, "w") do |f|
+              ECR.embed("src/template/pods.yaml", f)
+            end
           end
+          unless File.exists? "Containerfile.dev"
+            File.write "Containerfile.dev", ECR.render("src/template/Containerfile.dev")
+          end
+          unless File.exists? "Containerfile.prod"
+            File.write "Containerfile.prod", ECR.render("src/template/Containerfile.prod")
+          end
+          puts "Initialised pod config files in #{project}."
+          puts "Please edit to taste."
         end
-        unless File.exists? "Containerfile.dev"
-          File.write "Containerfile.dev", ECR.render("src/template/Containerfile.dev")
-        end
-        unless File.exists? "Containerfile.prod"
-          File.write "Containerfile.prod", ECR.render("src/template/Containerfile.prod")
-        end
-        puts "Initialised pod config files in #{project}."
-        puts "Please edit to taste."
       end
     end
   end
 end
 
+severity = Log::Severity.parse?(ENV["POD_LOG_LEVEL"]? || "error") || Log::Severity::Error
 Log.setup do |l|
-  l.stderr
+  l.stderr(severity: severity)
 end
+Log.info { "Logging at: #{severity}" }
 
-CLI.start(ARGV)
+Pod::CLI.start(ARGV)
