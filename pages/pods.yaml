@@ -1,0 +1,20 @@
+defaults:
+  build: website
+  run: website
+
+images:
+  website:
+    tag: pods-website:latest
+    from: Containerfile
+containers:
+  website:
+    name: pods-website
+    image: pods-website:latest
+    bind_mounts:
+      .: /src
+    ports:
+      4300: 80
+    interactive: true
+    autoremove: true
+    args:
+      - --future

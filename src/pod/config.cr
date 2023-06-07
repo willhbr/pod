@@ -29,11 +29,7 @@ module Pod::Config
     raise Pod::Exception.new("Config file #{file || DEFAULT_CONFIG_FILE} does not exist")
   end
 
-  def self.as_args(args : KVMapping(String, String)) : Array(String)
-    args.map { |k, v| "--#{k}=#{v}" }
-  end
-
-  def self.json_flags(args : KVMapping(String, YAML::Any)) : Array(String)
+  def self.as_args(args : KVMapping(String, YAML::Any)) : Array(String)
     args.map do |k, v|
       if str = v.as_s?
         "--#{k}=#{str}"
@@ -52,7 +48,7 @@ module Pod::Config
 
     def get_images(target : String?) : Array({String, Config::Image})
       if target.nil?
-        target = @defaults.run || ":all"
+        target = @defaults.build || ":all"
       end
       if i = @images[target]?
         return [{target, i}]
@@ -109,10 +105,10 @@ module Pod::Config
     getter push : String? = nil
     getter auto_push : Bool = false
     getter context : String = "."
-    getter podman_flags = KVMapping(String, String).new
-    getter build_flags = KVMapping(String, String).new
+    getter podman_flags = KVMapping(String, YAML::Any).new
+    getter build_flags = KVMapping(String, YAML::Any).new
     # for --build-arg
-    getter build_args = KVMapping(String, String).new
+    getter build_args = KVMapping(String, YAML::Any).new
 
     getter remote : String? = nil
 
@@ -123,21 +119,21 @@ module Pod::Config
       args = Array(String).new
       podman_args = @podman_flags.dup
       if rem = remote
-        podman_args.replace "remote", "true"
-        podman_args.replace "connection", rem
+        podman_args.replace "remote", YAML::Any.new(true)
+        podman_args.replace "connection", YAML::Any.new(rem)
       elsif con = @remote
-        podman_args.replace "remote", "true"
-        podman_args.replace "connection", con
+        podman_args.replace "remote", YAML::Any.new(true)
+        podman_args.replace "connection", YAML::Any.new(con)
       end
       args.concat Config.as_args(podman_args)
       args << "build"
       build_args = @build_flags.dup
       if t = @tag
-        build_args.replace "tag", t
+        build_args.replace "tag", YAML::Any.new(t)
       end
-      build_args.replace "file", @from
+      build_args.replace "file", YAML::Any.new(@from)
       @build_args.each do |name, value|
-        build_args["build-arg"] = "#{name}=#{value}"
+        build_args["build-arg"] = YAML::Any.new("#{name}=#{value}")
       end
       args.concat Config.as_args(build_args)
       args << @context
@@ -152,8 +148,8 @@ module Pod::Config
     getter connection : String? = nil
 
     # for podman
-    getter podman_flags = KVMapping(String, String).new
-    getter run_flags = KVMapping(String, String).new
+    getter podman_flags = KVMapping(String, YAML::Any).new
+    getter run_flags = KVMapping(String, YAML::Any).new
     # for the container
     getter flags = KVMapping(String, YAML::Any).new
     getter args = Array(String).new
@@ -184,11 +180,11 @@ module Pod::Config
       args = Array(String).new
       podman_args = @podman_flags.dup
       if rem = remote
-        podman_args.replace "remote", "true"
-        podman_args.replace "connection", rem
+        podman_args.replace "remote", YAML::Any.new(true)
+        podman_args.replace "connection", YAML::Any.new(rem)
       elsif con = @remote
-        podman_args.replace "remote", "true"
-        podman_args.replace "connection", con
+        podman_args.replace "remote", YAML::Any.new(true)
+        podman_args.replace "connection", YAML::Any.new(con)
       end
       args.concat Config.as_args(podman_args)
       args << "run"
@@ -198,33 +194,33 @@ module Pod::Config
         do_interactive = !detached
       end
       if do_interactive
-        run_args["tty"] = "true"
-        run_args["interactive"] = "true"
+        run_args["tty"] = YAML::Any.new(true)
+        run_args["interactive"] = YAML::Any.new(true)
       else
-        run_args["detach"] = "true"
+        run_args["detach"] = YAML::Any.new(true)
       end
       if @autoremove
-        run_args["rm"] = "true"
+        run_args["rm"] = YAML::Any.new(true)
       end
 
       @bind_mounts.each do |source, dest|
-        run_args["mount"] = "type=bind,src=#{source},dst=#{dest}"
+        run_args["mount"] = YAML::Any.new("type=bind,src=#{source},dst=#{dest}")
       end
       @volumes.each do |name, dest|
-        run_args["mount"] = "type=volume,src=#{name},dst=#{dest}"
+        run_args["mount"] = YAML::Any.new("type=volume,src=#{name},dst=#{dest}")
       end
       @ports.each do |host, cont|
-        run_args["publish"] = "#{host}:#{cont}"
+        run_args["publish"] = YAML::Any.new("#{host}:#{cont}")
       end
 
       @environment.each do |name, value|
-        run_args["env"] = "#{name}=#{value}"
+        run_args["env"] = YAML::Any.new("#{name}=#{value}")
       end
 
-      run_args["name"] = @name
-      run_args["hostname"] = @name
+      run_args["name"] = YAML::Any.new(@name)
+      run_args["hostname"] = YAML::Any.new(@name)
       if include_hash
-        run_args["label"] = "pod_hash=" + pod_hash(cmd_args)
+        run_args["label"] = YAML::Any.new("pod_hash=#{pod_hash(cmd_args)}")
       end
       args.concat Config.as_args(run_args)
       args << @image
@@ -232,7 +228,7 @@ module Pod::Config
       if ca = cmd_args
         args.concat ca
       else
-        args.concat Config.json_flags(@flags)
+        args.concat Config.as_args(@flags)
         args.concat @args
       end
       args

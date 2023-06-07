@@ -1,0 +1,30 @@
+title: pod
+author: Will Richardson
+
+description: "Pod is a tool for development and deployment of containerised applications"
+baseurl: ""
+
+url: "https://pod.willhbr.net"
+urls:
+  github: https://github.com/willhbr/pod
+  willhbr: "https://willhbr.net"
+  license: https://github.com/willhbr/pod/blob/main/LICENSE
+
+date_format: "%B %-d, %Y"
+timezone: Australia/Sydney
+
+# Build settings
+markdown: kramdown
+permalink: pretty
+highlighter: rouge
+
+sass:
+  style: compressed
+
+exclude:
+  - CNAME
+  - Containerfile
+  - Gemfile
+  - Gemfile.lock
+  - README.md
+  - pods.yaml

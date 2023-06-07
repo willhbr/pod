@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {% include head.html %}
+  </head>
+  <body>
+    <script>document.body.classList.add(localStorage.getItem('theme-toggle'))</script>
+    <button id="theme-toggle">light/dark</button>
+    {% include header.html %}
+    <div class="container">
+      {{ content }}
+    </div>
+    {% include footer.html %}
+    <script type="text/javascript" async src="/js/main.js"/> </script>
+  </body>
+</html>

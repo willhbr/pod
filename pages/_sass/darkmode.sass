@@ -1,0 +1,33 @@
+@mixin light-mode
+  --title-colour: #{$title-colour-light}
+  --highlight-colour: #{$highlight-colour-light}
+  --background-colour: #{$background-colour-light}
+  --text-colour: #{$text-colour-light}
+  --blockquote-colour: #{$blockquote-colour-light}
+  --blockquote-background: #{$blockquote-background-light}
+  --link-hover-colour: #{$link-hover-colour-light}
+  --metadata-colour: #{$metadata-colour-light}
+  --footer-colour: #{$footer-colour-light}
+
+@mixin dark-mode
+  --title-colour: #{$title-colour-dark}
+  --highlight-colour: #{$highlight-colour-dark}
+  --background-colour: #{$background-colour-dark}
+  --text-colour: #{$text-colour-dark}
+  --blockquote-colour: #{$blockquote-colour-dark}
+  --blockquote-background: #{$blockquote-background-dark}
+  --link-hover-colour: #{$link-hover-colour-dark}
+  --metadata-colour: #{$metadata-colour-dark}
+  --footer-colour: #{$footer-colour-dark}
+
+body, body.light-mode
+  @include light-mode
+
+body.dark-mode
+  @include dark-mode
+
+@media(prefers-color-scheme: dark)
+  body, body.dark-mode
+    @include dark-mode
+  body.light-mode
+    @include light-mode

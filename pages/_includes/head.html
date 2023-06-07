@@ -1,0 +1,21 @@
+{% capture title %}{% if page.title %}{{ page.title }}{% else %}{{ site.title }}{% endif %}{% endcapture %}
+<title>{{ title }}</title>
+
+<link rel="stylesheet" href="/css/main.css">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/site.webmanifest">
+
+<meta name="description" content="{{ site.description }}">
+<meta name="theme-color" content="#2b2b2b">
+<link rel="canonical" href="{{ page.url | replace:'index.html','' | prepend: site.url }}">    
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<meta property="og:url" content="{{ page.url | absolute_url }}">
+<meta property="og:type" content="{{ page.type }}">
+<meta property="og:title" content="{{ title }}">
+<meta property="og:description" content="{{ site.description }}">
+<meta property="og:image" content="{{ page.image }}">

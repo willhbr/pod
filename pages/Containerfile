@@ -1,0 +1,7 @@
+FROM ruby:3.1.3-alpine3.17
+RUN apk add g++ musl-dev make libstdc++
+WORKDIR /src
+COPY Gemfile* .
+RUN bundle install
+EXPOSE 80
+ENTRYPOINT ["bundle", "exec", "jekyll", "serve", "--host=0", "--port=80", "-w"]
