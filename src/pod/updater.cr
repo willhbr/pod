@@ -99,7 +99,7 @@ class Pod::Updater
         @io.puts "#{name} is paused, not updating.".colorize(:orange)
         next
       when UpdateReason::NoUpdate
-        @io.puts "#{name} up-to-date. Last updated: #{Time.utc - info.container.not_nil!.created} ago."
+        @io.puts "#{name} up-to-date. Last updated: #{info.container.not_nil!.uptime} ago."
         next
       when UpdateReason::Exited
         @io.puts "#{name} is exited, just starting it again"
@@ -164,7 +164,7 @@ class Pod::Updater
       @io.puts "no change in arguments"
     end
     print_diff(command, args)
-    @io.puts "Container started at #{container.started_at} (up #{Time.utc - container.started_at})"
+    @io.puts "Container started at #{container.started_at} (up #{container.uptime})"
   end
 
   class UpdateInfo

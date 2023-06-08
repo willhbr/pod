@@ -12,8 +12,6 @@ module Pod::Podman
       Configured
     end
 
-    @[JSON::Field(key: "Command")]
-    getter command : Array(String)
     @[JSON::Field(key: "Id")]
     getter id : String
     @[JSON::Field(key: "Image")]
@@ -27,12 +25,8 @@ module Pod::Podman
       @names.first.not_nil!
     end
 
-    @[JSON::Field(key: "Pid")]
-    getter pid : Int32
     @[JSON::Field(key: "StartedAt", converter: Time::EpochConverter)]
     getter started_at : Time
-    @[JSON::Field(key: "Created", converter: Time::EpochConverter)]
-    getter created : Time
     @[JSON::Field(key: "AutoRemove")]
     getter auto_remove : Bool
 
@@ -40,10 +34,6 @@ module Pod::Podman
       Time.utc - @started_at
     end
 
-    @[JSON::Field(key: "Exited")]
-    getter exited : Bool
-    @[JSON::Field(key: "ExitCode")]
-    getter exit_code : Int32
     @[JSON::Field(key: "State")]
     getter state : State
 
@@ -64,14 +54,8 @@ module Pod::Podman
     include JSON::Serializable
     @[JSON::Field(key: "Id")]
     getter id : String
-    @[JSON::Field(key: "Created")]
-    getter created : Time
-    @[JSON::Field(key: "Image")]
-    getter image : String
-    @[JSON::Field(key: "ImageName")]
-    getter image_name : String
 
-    class Config
+    struct Config
       include JSON::Serializable
       @[JSON::Field(key: "CreateCommand")]
       getter create_command : Array(String)
