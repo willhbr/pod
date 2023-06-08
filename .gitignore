@@ -1,7 +1,6 @@
-/docs/
 /lib/
 /bin/
 /.shards/
 *.dwarf
-/pages/_site/
-/pages/.jekyll-cache/
+/docs/_site/
+/docs/.jekyll-cache/
