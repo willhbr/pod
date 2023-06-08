@@ -22,9 +22,15 @@ const newPreference = (oldpref) => {
 const subtitles = [
   '# container manager',
   'build :all',
+  'run dev',
   'run website',
   'update prod',
-  'update --remote=prod'
+  'update --remote=prod',
+  'run --remote=server',
+  'diff prod',
+  'shell $container',
+  'logs $container',
+  'attach $container',
 ];
 
 const animateTitle = (lastIdx) => {
@@ -38,12 +44,12 @@ const animateTitle = (lastIdx) => {
   for (let i = 0; i < item.length; i++) {
     window.setTimeout(() => {
       elem.innerText += item[i];
-    }, (Math.random() * 50) + 200 * (i + 5));
+    }, (Math.random() * 50) + 180 * (i + 5));
   }
 
   window.setTimeout(() => {
     animateTitle(index);
-  }, (250 * (item.length + 5)) + 2000);
+  }, (230 * (item.length + 5)) + 2000);
 };
 
 addEventListener('load', () => {
