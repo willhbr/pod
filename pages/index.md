@@ -5,7 +5,7 @@ layout: page
 Running any project can be as easy as:
 
 ```shell
-> pod run
+$ pod run
 ```
 
 By wrapping [Podman][podman] in a command-line interface that gets out of the way, you can easily containerise your development environment, removing dependency conflicts, and making managing a virtual environment unnecessary.
@@ -24,7 +24,7 @@ containers:
     args:
       - sh
 # with the pod cli
-> pod run alpine-shell
+$ pod run alpine-shell
 ```
 
 `pod` scales up in complexity to add ports, mounts, and any other Podman feature[^not-all-features]. Once you've built the image you want to run in "production"[^not-actually], you can deploy it:
@@ -77,29 +77,4 @@ $ pod build
 $ pod run
 ```
 
-## `pods.yaml` Format
-
-```yaml
-# If no target is specified, use this one instead
-defaults:
-  build: website
-  run: website
-
-images:
-  website:
-    tag: my-project:latest
-    from: Containerfile.local
-
-containers:
-  website:
-    name: my-project
-    image: my-project:latest
-    bind_mounts:
-      .: /src
-    ports:
-      4000: 4000
-    interactive: true
-    autoremove: true
-    flags:
-      some_option: on
-```
+See [more info on the config file](/examples/config).

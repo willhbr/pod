@@ -55,6 +55,12 @@ class Pod::Updater
     Updater.run({"rm", container.id}, remote: remote)
   end
 
+  struct ImageId
+    include JSON::Serializable
+    @[JSON::Field(key: "Id")]
+    getter id : String
+  end
+
   def get_update_reason(config : Config::Container, container : Podman::Container, remote) : UpdateReason
     if container.state.paused?
       return UpdateReason::Paused
@@ -67,16 +73,23 @@ class Pod::Updater
     config_hash = config.pod_hash(args: nil)
 
     # check if image has updated
-    if config.image.includes? '/'
+    if config.image.includes?('/') && !config.image.starts_with?("localhost/")
       # it's in a registry
       Log.info { "Trying to pull new version of #{config.image}" }
       id = Updater.run({"pull", config.image, "--quiet"}, remote: remote).strip
     else
       # it's local
       Log.info { "Getting ID of image #{config.image}" }
-      id = Updater.run({"image", "ls", config.image, "--quiet", "--no-trunc"},
-        # I can't see an argument to remove the prefix :(
-        remote: remote).strip.lchop("sha256:")
+      images = Array(ImageId).from_json(Updater.run(
+        {"image", "ls", config.image, "--format=json"}, remote: remote))
+      if images.empty?
+        raise Pod::Exception.new "image not found: #{config.image}"
+      end
+      ids = Set(String).new(images.map(&.id))
+      if ids.size != 1
+        raise Pod::Exception.new "multiple images match: #{config.image} (#{ids.join(", ")})"
+      end
+      id = images[0].id
     end
 
     if id != container.image_id

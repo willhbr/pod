@@ -145,7 +145,6 @@ module Pod::Config
     include YAML::Serializable::Strict
     getter name : String
     getter image : String
-    getter connection : String? = nil
 
     # for podman
     getter podman_flags = KVMapping(String, YAML::Any).new
