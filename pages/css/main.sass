@@ -3,10 +3,10 @@
 
 @import "syntax"
 
-$highlight-colour-light: #6609a0
-$highlight-colour-dark: #D4B3FF
-$background-colour-light: #EEE
-$background-colour-dark: #333
+$highlight-colour-light: #4b3f5e
+$highlight-colour-dark: #d1c0ed
+$background-colour-light: #ededed
+$background-colour-dark: #0f0f0f
 $text-colour-light: #333
 $text-colour-dark: #EEE
 $title-colour-light: black
@@ -37,7 +37,7 @@ $footer-size: 0.9rem
 $blockquote-border-width: 3px
 $body-side-margin: 8px
 
-$page-width: 650px
+$page-width: 750px
 
 body
   color: var(--text-colour)
@@ -99,7 +99,10 @@ img
   font-weight: 300
   font-size: $header-size
   color: var(--title-colour)
-  font-family: monospace
+  font-family: 'Fira Code', 'Anonymous Pro', monospace
+  font-variant-ligatures: none
+  display: inline-block
+  min-height: $header-size
 .title:hover, .button:hover
   text-decoration: none
 
@@ -112,9 +115,15 @@ img
   font-size: 0.9em
 
 header.site-header
-  text-align: center
   margin-top: 25px
   margin-bottom: 50px
+  margin: auto
+  max-width: $page-width
+
+#live-subtitle
+  color: var(--metadata-colour)
+#live-subtitle:after
+  content: "|"
 
 blockquote
   margin: 0px

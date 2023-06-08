@@ -19,6 +19,33 @@ const newPreference = (oldpref) => {
   return mm && mm('(prefers-color-scheme: dark)').matches ? LM : DM;
 };
 
+const subtitles = [
+  '# container manager',
+  'build :all',
+  'run website',
+  'update prod',
+  'update --remote=prod'
+];
+
+const animateTitle = (lastIdx) => {
+  let index = Math.floor(Math.random()*subtitles.length);
+  if (index == lastIdx) {
+    index = (index + 1) % subtitles.length;
+  }
+  let item = subtitles[index];
+  let elem = document.getElementById('live-subtitle');
+  elem.innerHTML = '';
+  for (let i = 0; i < item.length; i++) {
+    window.setTimeout(() => {
+      elem.innerText += item[i];
+    }, (Math.random() * 50) + 200 * (i + 5));
+  }
+
+  window.setTimeout(() => {
+    animateTitle(index);
+  }, (250 * (item.length + 5)) + 2000);
+};
+
 addEventListener('load', () => {
   const PT = 'theme-toggle';
   let toggle = document.getElementById(PT);
@@ -40,4 +67,8 @@ addEventListener('load', () => {
       foot.setAttribute('title', ref.innerText.trim());
     }
   });
+
+  window.setTimeout(() => {
+    animateTitle();
+  }, 2000);
 });
