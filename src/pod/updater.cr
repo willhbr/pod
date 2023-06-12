@@ -44,53 +44,60 @@ class Pod::Updater
     include JSON::Serializable
     @[JSON::Field(key: "Id")]
     getter id : String
+    @[JSON::Field(key: "CreatedAt")]
+    getter created_at : Time
   end
 
-  private def resolve_new_image(config, remote) : String
+  private def resolve_new_image(image, remote) : ImageId
     # check if image has updated
-    if config.image.includes?('/') && !config.image.starts_with?("localhost/")
+    if image.includes?('/') && !image.starts_with?("localhost/")
       # it's in a registry
-      Log.info { "Trying to pull new version of #{config.image}" }
-      id = Updater.run({"pull", config.image, "--quiet"}, remote: remote).strip
-    else
-      # it's local
-      Log.info { "Getting ID of image #{config.image}" }
-      images = Array(ImageId).from_json(Updater.run(
-        {"image", "ls", config.image, "--format=json"}, remote: remote))
-      if images.empty?
-        raise Pod::Exception.new "image not found: #{config.image}"
-      end
-      ids = Set(String).new(images.map(&.id))
-      if ids.size != 1
-        raise Pod::Exception.new "multiple images match: #{config.image} (#{ids.join(", ")})"
-      end
-      id = images[0].id
+      Log.info { "Trying to pull new version of #{image}" }
+      id = Updater.run({"pull", image, "--quiet"}, remote: remote).strip
     end
-    id
+    # it's now local
+    Log.info { "Getting ID of image #{image}" }
+    images = Array(ImageId).from_json(Updater.run(
+      {"image", "ls", image, "--format=json"}, remote: remote))
+    if images.empty?
+      raise Pod::Exception.new "image not found: #{image}"
+    end
+    ids = Set(String).new(images.map(&.id))
+    if ids.size != 1
+      raise Pod::Exception.new "multiple images match: #{image} (#{ids.join(", ")})"
+    end
+    return images[0]
   end
 
   private def calculate_update(config, container, remote, override_image : String? = nil) : ContainerUpdate
     if container && container.state.paused?
-      return ContainerUpdate.new(:paused, config, container.image_id, remote, container)
+      return ContainerUpdate.new(:paused, config,
+        container.image_id, remote, Time.utc, container)
     end
-    image = override_image || self.resolve_new_image(config, remote)
+
+    image = self.resolve_new_image(override_image || config.image, remote)
     if container.nil?
-      return ContainerUpdate.new(:start, config, image, remote)
+      return ContainerUpdate.new(:start, config,
+        image.id, remote, image.created_at)
     end
 
     if container.state.exited?
-      return ContainerUpdate.new(:exited, config, image, remote, container)
+      return ContainerUpdate.new(:exited, config,
+        image.id, remote, image.created_at, container)
     end
 
     container_hash = container.pod_hash
     config_hash = config.pod_hash(args: nil)
 
-    if image != container.image_id
-      return ContainerUpdate.new(:different_image, config, image, remote, container)
+    if image.id != container.image_id
+      return ContainerUpdate.new(:different_image, config,
+        image.id, remote, image.created_at, container)
     elsif config_hash != container_hash
-      return ContainerUpdate.new(:new_config_hash, config, image, remote, container)
+      return ContainerUpdate.new(:new_config_hash, config,
+        image.id, remote, image.created_at, container)
     else
-      return ContainerUpdate.new(:no_update, config, image, remote, container)
+      return ContainerUpdate.new(:no_update, config,
+        image.id, remote, image.created_at, container)
     end
   end
 

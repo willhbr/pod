@@ -13,10 +13,11 @@ class Pod::ContainerUpdate
   getter reason : Reason
   getter config : Config::Container
   getter image_id : String
+  getter image_created : Time
   getter remote : String?
   getter! container : Podman::Container
 
-  def initialize(@reason, @config, @image_id, @remote, @container = nil)
+  def initialize(@reason, @config, @image_id, @remote, @image_created, @container = nil)
   end
 
   def actionable?
@@ -36,7 +37,7 @@ class Pod::ContainerUpdate
       io.puts "restart: #{@config.name} (currently exited)".colorize(:green)
       print_container_diff(io, inspect.not_nil!)
     when Reason::DifferentImage
-      old_image = self.container.id
+      old_image = self.container.image_id
       new_image = self.image_id
       io.puts "update: #{@config.name} (new image available: #{old_image.truncated}->#{new_image.truncated})".colorize(:blue)
       print_container_diff(io, inspect.not_nil!)
@@ -51,9 +52,9 @@ class Pod::ContainerUpdate
     new_img = self.image_id
     unless old_img == new_img
       io.puts "old image: #{self.container.image} (#{self.container.image_id.truncated})"
-      io.puts "new image: #{self.config.image} (#{self.image_id.truncated})"
+      io.puts "new image: #{self.config.image} (#{self.image_id.truncated}) #{@image_created}"
     else
-      io.puts "same image: #{self.config.image} (#{self.image_id.truncated})"
+      io.puts "same image: #{self.config.image} (#{self.image_id.truncated}) #{@image_created}"
     end
 
     old_args = inspect.config.create_command
@@ -92,7 +93,9 @@ class Pod::ContainerUpdate
     unless self.container.auto_remove
       remove_container
     end
-    start_container
+    io.puts "stopped old container"
+    id = start_container
+    io.puts "started new container: #{id.truncated}"
   end
 
   private def to_lines(lines)
