@@ -1,4 +1,5 @@
 require "digest/sha1"
+require "json"
 require "yaml"
 require "./kv_mapping"
 
@@ -141,6 +142,7 @@ module Pod::Config
   end
 
   class Container
+    include JSON::Serializable
     include YAML::Serializable
     include YAML::Serializable::Strict
     getter name : String
@@ -174,7 +176,8 @@ module Pod::Config
     def to_command(
       cmd_args : Enumerable(String)?,
       detached : Bool? = nil,
-      include_hash = true, remote = nil
+      include_hash = true, remote = nil,
+      override_image = nil
     )
       args = Array(String).new
       podman_args = @podman_flags.dup
@@ -222,7 +225,11 @@ module Pod::Config
         run_args["label"] = YAML::Any.new("pod_hash=#{pod_hash(cmd_args)}")
       end
       args.concat Config.as_args(run_args)
-      args << @image
+      if img = override_image
+        args << img
+      else
+        args << @image
+      end
 
       if ca = cmd_args
         args.concat ca

@@ -57,7 +57,11 @@ module Pod::Config
       KVMapping(K, V).new(@tuples.dup)
     end
 
-    delegate map, each, to_s, inspect, to: @tuples
+    def self.new(parser : JSON::PullParser)
+      new Array(Tuple(K, V)).new(parser)
+    end
+
+    delegate map, each, to_s, inspect, to_json, to: @tuples
   end
 end
 
@@ -67,6 +71,37 @@ class YAML::Nodes::Scalar
   def value : String
     @expanded ||= @value.gsub(/\$\w+/) do |key|
       ENV[key[1...]]? || key
+    end
+  end
+end
+
+struct YAML::Any
+  def self.new(pull : JSON::PullParser)
+    case pull.kind
+    when .null?
+      new pull.read_null
+    when .bool?
+      new pull.read_bool
+    when .int?
+      new pull.read_int
+    when .float?
+      new pull.read_float
+    when .string?
+      new pull.read_string
+    when .begin_array?
+      ary = [] of YAML::Any
+      pull.read_array do
+        ary << new(pull)
+      end
+      new ary
+    when .begin_object?
+      hash = {} of YAML::Any => YAML::Any
+      pull.read_object do |key|
+        hash[new(key)] = new(pull)
+      end
+      new hash
+    else
+      raise "Unknown pull kind: #{pull.kind}"
     end
   end
 end

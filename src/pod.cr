@@ -36,6 +36,8 @@ def wrap_exceptions
 end
 
 class Pod::CLI < Clim
+  STORE_PATH = ENV["POD_HISTORY_STORE"]? || "~/.config/pod/"
+
   main do
     desc "Pod CLI"
     usage "pod [sub_command] [arguments]"
@@ -135,7 +137,8 @@ class Pod::CLI < Clim
         wrap_exceptions do
           config = Config.load_config!(opts.config)
           containers = config.get_containers(args.target || config.defaults.update)
-          manager = Updater.new(STDOUT, opts.remote)
+          store = StateStore.new(Path[STORE_PATH].expand(home: true))
+          manager = Updater.new(STDOUT, opts.remote, store)
           configs = containers.map { |c| c[1] }
           updates = manager.calculate_updates(configs)
           if opts.diff
@@ -144,10 +147,12 @@ class Pod::CLI < Clim
               print "update? [y/N] "
               if (inp = gets) && inp.chomp.downcase == "y"
                 manager.update_containers(updates)
+                store.save
               end
             end
           else
             manager.update_containers(updates)
+            store.save
           end
         end
       end
@@ -164,10 +169,47 @@ class Pod::CLI < Clim
         wrap_exceptions do
           config = Config.load_config!(opts.config)
           containers = config.get_containers(args.target || config.defaults.update)
-          manager = Updater.new(STDOUT, opts.remote)
+          manager = Updater.new(STDOUT, opts.remote,
+            StateStore.new(Path[STORE_PATH].expand(home: true)))
           configs = containers.map { |c| c[1] }
           updates = manager.calculate_updates(configs)
           manager.print_changes(updates)
+        end
+      end
+    end
+
+    sub "revert" do
+      desc "revert an update"
+      usage "pod revert [options]"
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
+      argument "target", type: String, desc: "target to run", required: false
+
+      run do |opts, args|
+        wrap_exceptions do
+          config = Config.load_config!(opts.config)
+          containers = config.get_containers(args.target || config.defaults.update)
+          store = StateStore.new(Path[STORE_PATH].expand(home: true))
+          manager = Updater.new(STDOUT, opts.remote, store)
+          configs = Array(Config::Container).new
+          containers.each do |name, container|
+            versions = store[opts.remote || container.remote, container.name]
+            if versions.empty?
+              STDERR.puts "No update history for #{name}"
+              next
+            end
+            versions.each_with_index do |version, index|
+              puts "[#{index + 1}] #{version.update_time}: #{version.config.image} (#{version.image_id})"
+            end
+            print "select version [1-#{versions.size}]: "
+            unless (choice = gets.try(&.chomp)) && (idx = choice.to_i?)
+              raise Pod::Exception.new("enter an index, 1-#{versions.size}")
+            end
+            version = versions[idx - 1]
+            # manager.calculate_updates
+            puts "updating to #{version.inspect}"
+          end
+          manager.revert(containers[0][1])
         end
       end
     end
@@ -246,9 +288,13 @@ class Pod::CLI < Clim
 end
 
 severity = Log::Severity.parse?(ENV["POD_LOG_LEVEL"]? || "error") || Log::Severity::Error
+{% if flag? :debug %}
+  severity = Log::Severity::Debug
+{% end %}
 Log.setup do |l|
   l.stderr(severity: severity)
 end
 Log.info { "Logging at: #{severity}" }
 
+Colorize.on_tty_only!
 Pod::CLI.start(ARGV)
