@@ -69,11 +69,11 @@ class Pod::Updater
     id
   end
 
-  private def calculate_update(config, container, remote) : ContainerUpdate
+  private def calculate_update(config, container, remote, override_image : String? = nil) : ContainerUpdate
     if container && container.state.paused?
       return ContainerUpdate.new(:paused, config, container.image_id, remote, container)
     end
-    image = self.resolve_new_image(config, remote)
+    image = override_image || self.resolve_new_image(config, remote)
     if container.nil?
       return ContainerUpdate.new(:start, config, image, remote)
     end
@@ -143,8 +143,22 @@ class Pod::Updater
     end
   end
 
-  def revert(config : Config::Container)
-    states = @state_store[@remote || config.remote, config.name]
-    Log.info { states }
+  def calculate_reversions(states : Array(StateStore::ContainerState))
+    configs_per_host = Hash(String?, Array(StateStore::ContainerState)).new do |hash, key|
+      hash[key] = Array(StateStore::ContainerState).new
+    end
+    states.each do |state|
+      configs_per_host[@remote || state.config.remote] << state
+    end
+    changes = Array(ContainerUpdate).new
+    configs_per_host.each do |host, states|
+      existing_containers = self.get_containers(states.map { |s| s.config.name }, host).to_h { |c| {c.name, c} }
+      states.each do |state|
+        container = existing_containers.delete(state.config.name)
+        changes << calculate_update(state.config, container, host,
+          override_image: state.image_id)
+      end
+    end
+    changes
   end
 end

@@ -17,7 +17,6 @@ class Pod::StateStore
   end
 
   def record(remote : String?, config : Pod::Config::Container, image : String) : Nil
-    Log.info { "Recording #{remote}->#{image}\n#{config.to_yaml}" }
     states = self[remote, config.name]
     states << ContainerState.new(
       update_time: Time.utc,
