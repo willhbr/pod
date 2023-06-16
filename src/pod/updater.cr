@@ -139,7 +139,7 @@ class Pod::Updater
       updates_per_host[update.remote] << update
     end
     updates_per_host.each do |host, updates|
-      ids = updates.reject { |u| u.container.nil? }.map { |u| u.container.not_nil!.id }
+      ids = updates.reject { |u| u.container?.nil? }.map { |u| u.container.id }
       inspections = self.inspect_containers(ids, host).to_h { |i| {i.id, i} }
       updates.each do |info|
         if id = info.container?.try &.id

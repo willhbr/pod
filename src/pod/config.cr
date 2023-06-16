@@ -156,6 +156,7 @@ module Pod::Config
     getter args = Array(String).new
 
     getter environment = Hash(String, String).new
+    getter labels = Hash(String, YAML::Any).new
 
     # options that set other options
     getter interactive : Bool = false
@@ -212,7 +213,8 @@ module Pod::Config
         run_args["mount"] = YAML::Any.new("type=volume,src=#{name},dst=#{dest}")
       end
       @ports.each do |host, cont|
-        run_args["publish"] = YAML::Any.new("#{host}:#{cont}")
+        # use port zero to assign random free port
+        run_args["publish"] = YAML::Any.new("#{host.zero? ? "" : host}:#{cont}")
       end
 
       @environment.each do |name, value|
@@ -223,6 +225,14 @@ module Pod::Config
       run_args["hostname"] = YAML::Any.new(@name)
       if include_hash
         run_args["label"] = YAML::Any.new("pod_hash=#{pod_hash(cmd_args)}")
+      end
+      @labels.each do |name, value|
+        run_args["label"] =
+          if str = value.as_s?
+            YAML::Any.new("#{name}=#{str}")
+          else
+            YAML::Any.new("#{name}=#{value.to_json}")
+          end
       end
       args.concat Config.as_args(run_args)
       if img = override_image
