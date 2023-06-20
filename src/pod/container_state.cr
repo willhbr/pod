@@ -6,9 +6,8 @@ class Pod::StateStore
     include JSON::Serializable
     getter update_time : Time
     getter config : Pod::Config::Container
-    getter image_id : String
 
-    def initialize(@update_time, @config, @image_id)
+    def initialize(@update_time, @config)
     end
   end
 
@@ -16,12 +15,12 @@ class Pod::StateStore
     @states = Hash({String, String}, Array(ContainerState)).new
   end
 
-  def record(remote : String?, config : Pod::Config::Container, image : String) : Nil
+  def record(config : Pod::Config::Container) : Nil
+    remote = config.remote || "localhost"
     states = self[remote, config.name]
     states << ContainerState.new(
       update_time: Time.utc,
       config: config,
-      image_id: image
     )
     nil
   end

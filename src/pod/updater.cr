@@ -40,50 +40,43 @@ class Pod::Updater
       Updater.run(%w(container inspect) + ids, remote: remote))
   end
 
-  struct ImageId
-    include JSON::Serializable
-    @[JSON::Field(key: "Id")]
-    getter id : String
-    @[JSON::Field(key: "CreatedAt")]
-    getter created_at : Time
-  end
-
-  private def resolve_new_image(image, remote) : ImageId
+  private def resolve_new_image(image, remote) : Podman::Image
     # check if image has updated
     if image.includes?('/') && !image.starts_with?("localhost/")
       # it's in a registry
       Log.info { "Trying to pull new version of #{image}" }
-      id = Updater.run({"pull", image, "--quiet"}, remote: remote).strip
+      Updater.run({"pull", image, "--quiet"}, remote: remote).strip
     end
+
     # it's now local
     Log.info { "Getting ID of image #{image}" }
-    images = Array(ImageId).from_json(Updater.run(
-      {"image", "ls", image, "--format=json"}, remote: remote))
+    images = Pod::Images.get_by_name(remote, image)
+
     if images.empty?
       raise Pod::Exception.new "image not found: #{image}"
     end
-    ids = Set(String).new(images.map(&.id))
-    if ids.size != 1
-      raise Pod::Exception.new "multiple images match: #{image} (#{ids.join(", ")})"
+    if images.size != 1
+      raise Pod::Exception.new "multiple images match: #{image} (#{images.join(", ")})"
     end
     return images[0]
   end
 
-  private def calculate_update(config, container, remote, override_image : String? = nil) : ContainerUpdate
+  private def calculate_update(config, container, remote) : ContainerUpdate
     if container && container.state.paused?
-      return ContainerUpdate.new(:paused, config,
-        container.image_id, remote, Time.utc, container)
+      return ContainerUpdate.new(:paused, config, remote, container)
     end
 
-    image = self.resolve_new_image(override_image || config.image, remote)
+    image = self.resolve_new_image(config.image, remote)
+    config.apply_overrides! image: image.id
+
     if container.nil?
       return ContainerUpdate.new(:start, config,
-        image.id, remote, image.created_at)
+        remote)
     end
 
     if container.state.exited?
       return ContainerUpdate.new(:exited, config,
-        image.id, remote, image.created_at, container)
+        remote, container)
     end
 
     container_hash = container.pod_hash
@@ -91,13 +84,13 @@ class Pod::Updater
 
     if image.id != container.image_id
       return ContainerUpdate.new(:different_image, config,
-        image.id, remote, image.created_at, container)
+        remote, container)
     elsif config_hash != container_hash
       return ContainerUpdate.new(:new_config_hash, config,
-        image.id, remote, image.created_at, container)
+        remote, container)
     else
       return ContainerUpdate.new(:no_update, config,
-        image.id, remote, image.created_at, container)
+        remote, container)
     end
   end
 
@@ -105,7 +98,7 @@ class Pod::Updater
     updates.each do |info|
       info.update(@io)
       if info.actionable?
-        @state_store.record(info.remote, info.config, info.image_id)
+        @state_store.record(info.config)
       end
     end
   end
@@ -162,8 +155,7 @@ class Pod::Updater
       existing_containers = self.get_containers(states.map { |s| s.config.name }, host).to_h { |c| {c.name, c} }
       states.each do |state|
         container = existing_containers.delete(state.config.name)
-        changes << calculate_update(state.config, container, host,
-          override_image: state.image_id)
+        changes << calculate_update(state.config, container, host)
       end
     end
     changes

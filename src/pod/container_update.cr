@@ -12,12 +12,10 @@ class Pod::ContainerUpdate
 
   getter reason : Reason
   getter config : Config::Container
-  getter image_id : String
-  getter image_created : Time
   getter remote : String?
   getter! container : Podman::Container
 
-  def initialize(@reason, @config, @image_id, @remote, @image_created, @container = nil)
+  def initialize(@reason, @config, @remote, @container = nil)
   end
 
   def actionable?
@@ -38,7 +36,7 @@ class Pod::ContainerUpdate
       print_container_diff(io, inspect.not_nil!)
     when Reason::DifferentImage
       old_image = self.container.image_id
-      new_image = self.image_id
+      new_image = self.config.image
       io.puts "update: #{@config.name} (new image available: #{old_image.truncated}->#{new_image.truncated})".colorize(:blue)
       print_container_diff(io, inspect.not_nil!)
     when Reason::NewConfigHash
@@ -48,13 +46,15 @@ class Pod::ContainerUpdate
   end
 
   private def print_container_diff(io, inspect)
-    old_img = container.image_id
-    new_img = self.image_id
-    unless old_img == new_img
-      io.puts "old image: #{self.container.image} (#{self.container.image_id.truncated})"
-      io.puts "new image: #{self.config.image} (#{self.image_id.truncated}) #{@image_created}"
+    old_image = Pod::Images.get! config.remote, container.image_id
+    # If it doesn't have the tag, add the tag to
+    old_image.names << "<#{container.image}>"
+    new_image = Pod::Images.get! config.remote, self.config.image
+    unless old_image == new_image
+      io.puts "old image: #{old_image}"
+      io.puts "new image: #{new_image}"
     else
-      io.puts "same image: #{self.config.image} (#{self.image_id.truncated}) #{@image_created}"
+      io.puts "same image: #{new_image}"
     end
 
     old_args = inspect.config.create_command
@@ -132,8 +132,7 @@ class Pod::ContainerUpdate
   end
 
   private def get_args
-    @config.to_command(remote: @remote, detached: true,
-      cmd_args: nil, override_image: @image_id)
+    @config.to_command(cmd_args: nil)
   end
 
   private def start_container

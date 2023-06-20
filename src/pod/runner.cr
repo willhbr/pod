@@ -4,7 +4,8 @@ class Pod::Runner
 
   def build(target : String?)
     @config.get_images(target).each do |name, image|
-      args = image.to_command(remote: @remote)
+      image.apply_overrides! remote: @remote
+      args = image.to_command
       t = Time.measure do
         status = run(args)
         unless status.success?
@@ -25,13 +26,14 @@ class Pod::Runner
       detached = true
     end
     containers.each do |name, container|
+      container.apply_overrides! remote: @remote, detached: detached
       if container.pull_latest
         status = run({"pull", container.image})
         unless status.success?
           raise Pod::Exception.new("failed to pull latest #{container.image}")
         end
       end
-      args = container.to_command(extra_args, detached: detached, remote: @remote)
+      args = container.to_command(extra_args)
       status = run(args, exec: !multiple)
       unless status.success?
         raise Pod::Exception.new("failed to run #{name}")
@@ -54,7 +56,7 @@ class Pod::Runner
     unless push = image.push
       raise Pod::Exception.new("can't push image with no push destination: #{name}")
     end
-    if remote = @remote
+    if remote = @remote || image.remote
       args = {"--remote=true", "--connection=#{remote}", "push", tag, push}
     else
       args = {"push", tag, push}

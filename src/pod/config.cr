@@ -116,15 +116,18 @@ module Pod::Config
     def initialize(@from, @tag)
     end
 
-    def to_command(remote = nil) : Array(String)
+    def apply_overrides!(remote : String? = nil)
+      if remote
+        @remote = remote
+      end
+    end
+
+    def to_command : Array(String)
       args = Array(String).new
       podman_args = @podman_flags.dup
-      if rem = remote
+      if remote = @remote
         podman_args.replace "remote", YAML::Any.new(true)
-        podman_args.replace "connection", YAML::Any.new(rem)
-      elsif con = @remote
-        podman_args.replace "remote", YAML::Any.new(true)
-        podman_args.replace "connection", YAML::Any.new(con)
+        podman_args.replace "connection", YAML::Any.new(remote)
       end
       args.concat Config.as_args(podman_args)
       args << "build"
@@ -174,29 +177,35 @@ module Pod::Config
     def initialize(@name, @image)
     end
 
+    def apply_overrides!(
+      detached : Bool? = nil, remote : String? = nil,
+      image : String? = nil
+    )
+      unless detached.nil?
+        @interactive = !detached
+      end
+      if remote
+        @remote = remote
+      end
+      if image
+        @image = image
+      end
+    end
+
     def to_command(
       cmd_args : Enumerable(String)?,
-      detached : Bool? = nil,
-      include_hash = true, remote = nil,
-      override_image = nil
+      include_hash = true
     )
       args = Array(String).new
       podman_args = @podman_flags.dup
-      if rem = remote
+      if remote = @remote
         podman_args.replace "remote", YAML::Any.new(true)
-        podman_args.replace "connection", YAML::Any.new(rem)
-      elsif con = @remote
-        podman_args.replace "remote", YAML::Any.new(true)
-        podman_args.replace "connection", YAML::Any.new(con)
+        podman_args.replace "connection", YAML::Any.new(remote)
       end
       args.concat Config.as_args(podman_args)
       args << "run"
       run_args = @run_flags.dup
-      do_interactive = @interactive
-      if detached != nil
-        do_interactive = !detached
-      end
-      if do_interactive
+      if @interactive
         run_args["tty"] = YAML::Any.new(true)
         run_args["interactive"] = YAML::Any.new(true)
       else
@@ -223,9 +232,11 @@ module Pod::Config
 
       run_args["name"] = YAML::Any.new(@name)
       run_args["hostname"] = YAML::Any.new(@name)
+
       if include_hash
         run_args["label"] = YAML::Any.new("pod_hash=#{pod_hash(cmd_args)}")
       end
+
       @labels.each do |name, value|
         run_args["label"] =
           if str = value.as_s?
@@ -235,11 +246,8 @@ module Pod::Config
           end
       end
       args.concat Config.as_args(run_args)
-      if img = override_image
-        args << img
-      else
-        args << @image
-      end
+
+      args << @image
 
       if ca = cmd_args
         args.concat ca
@@ -254,9 +262,8 @@ module Pod::Config
       dig = Digest::SHA1.new
       self.to_command(
         cmd_args: args,
-        # Always use an empty string here to keep hashes consistent even if
-        # it's running somewhere else
-        remote: "", include_hash: false).each do |arg|
+        include_hash: false
+      ).each do |arg|
         dig.update(arg)
       end
       dig.hexfinal

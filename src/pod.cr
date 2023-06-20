@@ -106,7 +106,8 @@ class Pod::CLI < Clim
           else
             detached = nil
           end
-          Runner.new(config, opts.remote, opts.show, STDOUT).run(args.target, detached, extra_args)
+          Runner.new(config, opts.remote, opts.show, STDOUT).run(
+            args.target, detached, extra_args)
         end
       end
     end
@@ -142,6 +143,9 @@ class Pod::CLI < Clim
           store = StateStore.new(Path[STORE_PATH].expand(home: true))
           manager = Updater.new(STDOUT, opts.remote, store)
           configs = containers.map { |c| c[1] }
+          configs.each do |conf|
+            conf.apply_overrides! remote: opts.remote
+          end
           updates = manager.calculate_updates(configs)
           if opts.diff
             manager.print_changes(updates)
@@ -202,7 +206,7 @@ class Pod::CLI < Clim
               next
             end
             versions.each_with_index do |version, index|
-              puts "[#{index + 1}] #{version.update_time}: #{version.config.image} (#{version.image_id.truncated})"
+              puts "[#{index + 1}] #{version.update_time}: #{version.config.image.truncated}"
             end
             print "select version [1-#{versions.size}]: "
             unless (choice = gets.try(&.chomp)) && (idx = choice.to_i?)
