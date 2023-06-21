@@ -38,7 +38,8 @@ def wrap_exceptions
 end
 
 class Pod::CLI < Clim
-  STORE_PATH = ENV["POD_HISTORY_STORE"]? || "~/.config/pod/"
+  STORE_PATH    = ENV["POD_HISTORY_STORE"]? || "~/.config/pod/"
+  SCRIPT_CONFIG = ENV["POD_SCRIPT_CONFIG"]? || "~/.config/pod/script.yaml"
 
   main do
     desc "Pod CLI"
@@ -64,6 +65,7 @@ class Pod::CLI < Clim
     end
 
     sub "build" do
+      alias_name "b"
       desc "build an image"
       usage "pod build [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
@@ -81,6 +83,7 @@ class Pod::CLI < Clim
     end
 
     sub "run" do
+      alias_name "r"
       desc "run a container"
       usage "pod run [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
@@ -113,6 +116,7 @@ class Pod::CLI < Clim
     end
 
     sub "push" do
+      alias_name "p"
       desc "push an image to a registry"
       usage "pod push [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
@@ -129,6 +133,7 @@ class Pod::CLI < Clim
     end
 
     sub "update" do
+      alias_name "u"
       desc "update a running container"
       usage "pod update [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
@@ -165,6 +170,7 @@ class Pod::CLI < Clim
     end
 
     sub "diff" do
+      alias_name "d"
       desc "preview updates to running containers"
       usage "pod diff [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
@@ -185,6 +191,7 @@ class Pod::CLI < Clim
     end
 
     sub "revert" do
+      alias_name "undo", "rollback"
       desc "revert an update"
       usage "pod revert [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
@@ -232,6 +239,7 @@ class Pod::CLI < Clim
     end
 
     sub "shell" do
+      alias_name "sh"
       desc "run a shell in a container"
       usage "pod shell <container>"
       argument "target", type: String, desc: "target to run in", required: true
@@ -244,6 +252,7 @@ class Pod::CLI < Clim
     end
 
     sub "attach" do
+      alias_name "a"
       desc "attach to a container"
       usage "pod attach <container>"
       argument "target", type: String, desc: "target to run in", required: true
@@ -254,6 +263,7 @@ class Pod::CLI < Clim
     end
 
     sub "logs" do
+      alias_name "l"
       desc "show logs from a container"
       usage "pod logs <container>"
       argument "target", type: String, desc: "target to run in", required: true
@@ -266,6 +276,7 @@ class Pod::CLI < Clim
     end
 
     sub "init" do
+      alias_name "i"
       desc "initialise a config file"
       usage "pod init"
 
@@ -298,6 +309,20 @@ class Pod::CLI < Clim
         wrap_exceptions do
           config = Config.load_config!(opts.config)
           puts Set(String).new(config.images.keys + config.containers.keys + config.groups.keys).join('\n')
+        end
+      end
+    end
+
+    sub "script" do
+      alias_name "sc"
+      desc "run a script"
+      usage "pod script <name> -- script args"
+
+      run do |opts, args|
+        wrap_exceptions do
+          config = Scripter::Config.from_yaml(File.read(Path[SCRIPT_CONFIG].expand(home: true)))
+          scripter = Pod::Scripter.new(config)
+          scripter.exec(args.argv)
         end
       end
     end

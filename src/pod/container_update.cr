@@ -35,9 +35,7 @@ class Pod::ContainerUpdate
       io.puts "restart: #{@config.name} (currently exited)".colorize(:green)
       print_container_diff(io, inspect.not_nil!)
     when Reason::DifferentImage
-      old_image = self.container.image_id
-      new_image = self.config.image
-      io.puts "update: #{@config.name} (new image available: #{old_image.truncated}->#{new_image.truncated})".colorize(:blue)
+      io.puts "update: #{@config.name} (new image available)".colorize(:blue)
       print_container_diff(io, inspect.not_nil!)
     when Reason::NewConfigHash
       io.puts "update: #{@config.name} (arguments changed)".colorize(:blue)
@@ -51,10 +49,10 @@ class Pod::ContainerUpdate
     old_image.names << "<#{container.image}>"
     new_image = Pod::Images.get! config.remote, self.config.image
     unless old_image == new_image
-      io.puts "old image: #{old_image}"
-      io.puts "new image: #{new_image}"
+      io.puts "old image: #{old_image}".colorize(:red)
+      io.puts "new image: #{new_image}".colorize(:green)
     else
-      io.puts "same image: #{new_image}"
+      io.puts "same image: #{new_image}".colorize(:blue)
     end
 
     old_args = inspect.config.create_command

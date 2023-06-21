@@ -28,6 +28,7 @@ class Pod::Runner
     containers.each do |name, container|
       container.apply_overrides! remote: @remote, detached: detached
       if container.pull_latest
+        # TODO this doesn't work with remote
         status = run({"pull", container.image})
         unless status.success?
           raise Pod::Exception.new("failed to pull latest #{container.image}")
