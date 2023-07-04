@@ -54,7 +54,7 @@ class Pod::CLI < Clim
         if conf = Config.load_config(nil)
           puts "pod build => pod build #{conf.defaults.build}" if conf.defaults.build
           puts "pod run => pod run #{conf.defaults.build}" if conf.defaults.run
-          puts "pod update => pod run #{conf.defaults.update}" if conf.defaults.update
+          puts "pod update => pod update #{conf.defaults.update}" if conf.defaults.update
           puts
           puts "pod build #{conf.images.keys.join(", ")}" unless conf.images.size.zero?
           puts "pod run #{conf.containers.keys.join(", ")}" unless conf.containers.size.zero?
@@ -149,7 +149,7 @@ class Pod::CLI < Clim
           manager = Updater.new(STDOUT, opts.remote, store)
           configs = containers.map { |c| c[1] }
           configs.each do |conf|
-            conf.apply_overrides! remote: opts.remote
+            conf.apply_overrides! remote: opts.remote, detached: true
           end
           updates = manager.calculate_updates(configs)
           if opts.diff

@@ -6,10 +6,17 @@ module Pod::Podman
     include YAML::Serializable
 
     enum State
+      Unknown
+      Created
       Running
       Paused
       Exited
+      Stopped
       Configured
+
+      def self.from_json(parser : JSON::PullParser) : State
+        parse?(parser.read_string) || State::Unknown
+      end
     end
 
     @[JSON::Field(key: "Id")]

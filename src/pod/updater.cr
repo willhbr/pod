@@ -74,7 +74,7 @@ class Pod::Updater
         remote)
     end
 
-    if container.state.exited?
+    unless container.state.running?
       return ContainerUpdate.new(:exited, config,
         remote, container)
     end
