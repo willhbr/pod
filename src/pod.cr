@@ -316,7 +316,7 @@ class Pod::CLI < Clim
     sub "script" do
       alias_name "sc"
       desc "run a script"
-      usage "pod script <name> -- script args"
+      usage "pod script <name> -- [args]"
 
       run do |opts, args|
         wrap_exceptions do
@@ -329,10 +329,13 @@ class Pod::CLI < Clim
   end
 end
 
-severity = Log::Severity.parse?(ENV["POD_LOG_LEVEL"]? || "error") || Log::Severity::Error
+default = Log::Severity::Error
 {% unless flag? :release %}
-  severity = Log::Severity::Debug
+  default = Log::Severity::Debug
 {% end %}
+
+severity = Log::Severity.parse?(ENV["POD_LOG_LEVEL"]? || "error") || default
+
 Log.setup do |l|
   l.stderr(severity: severity)
 end

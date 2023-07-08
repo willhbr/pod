@@ -225,6 +225,9 @@ module Pod::Config
       end
 
       @bind_mounts.each do |source, dest|
+        if source.starts_with? '~'
+          source = Path[source].expand(home: true).to_s
+        end
         run_args["mount"] = YAML::Any.new("type=bind,src=#{source},dst=#{dest}")
       end
       @volumes.each do |name, dest|
