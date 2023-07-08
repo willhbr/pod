@@ -7,7 +7,9 @@ class Pod::Scripter
   def exec(args : Array(String))
     file = args[0]
     extension = Path[file].extension.lchop('.')
-    container = @config.types[extension]
+    unless container = @config.types[extension]?
+      raise Pod::Exception.new("no script config for #{file} (#{extension})")
+    end
     if container.pull_latest
       status = Process.run(command: "podman", args: {"pull", container.image},
         input: Process::Redirect::Close, output: Process::Redirect::Inherit,
@@ -16,7 +18,16 @@ class Pod::Scripter
         raise Pod::Exception.new("failed to pull latest #{container.image}")
       end
     end
-    Process.exec(command: "podman", args: container.to_command(args))
+    container.apply_overrides!(
+      detached: false, name: sanitise(container.name, file))
+    cmd = container.to_command(args)
+    Log.info { "Running podman #{cmd.join(' ')}" }
+    Process.exec(command: "podman", args: cmd)
+  end
+
+  def sanitise(type : String, name : String) : String
+    n = name.gsub(/\W+/, '_')
+    "#{type}.#{n}"
   end
 end
 

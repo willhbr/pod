@@ -8,11 +8,13 @@ module Pod::Config
     paths = Path[Dir.current].parents
     paths << Path[Dir.current]
     paths.reverse.each do |path|
-      Dir.cd path
       target = path / (file || DEFAULT_CONFIG_FILE)
+      Dir.cd target.parent
       if ::File.exists? target
         Log.info { "Loading config from #{target}" }
-        return Config::File.from_yaml(::File.read(target))
+        config = Config::File.from_yaml(::File.read(target))
+        Log.info { config.inspect }
+        return config
       end
     end
   end
@@ -42,6 +44,10 @@ module Pod::Config
 
   class File
     include YAML::Serializable
+    @[YAML::Field(ignore: true)]
+    getter working_dir = Dir.current
+    getter project : String = Path[Dir.current].basename
+    getter includes = Array(String).new
     getter defaults = Defaults.new
     getter images = Hash(String, Config::Image).new
     getter containers = Hash(String, Config::Container).new
@@ -179,7 +185,7 @@ module Pod::Config
 
     def apply_overrides!(
       detached : Bool? = nil, remote : String? = nil,
-      image : String? = nil
+      image : String? = nil, name : String? = nil
     )
       unless detached.nil?
         @interactive = !detached
@@ -189,6 +195,9 @@ module Pod::Config
       end
       if image
         @image = image
+      end
+      if name
+        @name = name
       end
     end
 
