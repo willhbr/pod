@@ -166,6 +166,7 @@ module Pod::Config
 
     getter environment = Hash(String, String).new
     getter labels = Hash(String, YAML::Any).new
+    getter network : String | Array(String) = Array(String).new
 
     # options that set other options
     getter interactive : Bool = false
@@ -242,6 +243,14 @@ module Pod::Config
         run_args["env"] = YAML::Any.new("#{name}=#{value}")
       end
 
+      case network = @network
+      when String
+        run_args["network"] = YAML::Any.new(network)
+      when Array(String)
+        network.each do |network|
+          run_args["network"] = YAML::Any.new(network)
+        end
+      end
       run_args["name"] = YAML::Any.new(@name)
       run_args["hostname"] = YAML::Any.new(@name)
 
