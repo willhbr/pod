@@ -78,3 +78,7 @@ $ pod run
 ```
 
 See [more info on the config file](/examples/config).
+
+## Script
+
+`pod` can also be used to run simple scripts without setting up a whole project, see [pod script](/examples/script).

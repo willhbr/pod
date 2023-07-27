@@ -5,7 +5,9 @@ class Pod::Scripter
   end
 
   def exec(args : Array(String))
-    file = args[0]
+    unless file = args[0]?
+      raise Pod::Exception.new "missing input file, requires at least one argument"
+    end
     extension = Path[file].extension.lchop('.')
     unless container = @config.types[extension]?
       raise Pod::Exception.new("no script config for #{file} (#{extension})")
