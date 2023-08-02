@@ -10,10 +10,10 @@ layout: page
 `script` chooses the image based on the file extension and the contents of the script config file. This lives in `~/.config/pod/script.yaml`, and is very similar to the containers section of the `pods.yaml` config:
 
 ```yaml
-types:
+scripts:
   py:
     name: python
-    image: docker.io/library/3.9-alpine
+    image: docker.io/library/python:3.9-alpine
     autoremove: true
     bind_mounts:
       .: /src

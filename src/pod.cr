@@ -317,12 +317,27 @@ class Pod::CLI < Clim
       alias_name "sc"
       desc "run a script"
       usage "pod script <name> -- [args]"
+      option "-t TYPE", "--type=TYPE", type: String, desc: "force a particular file extension", required: false
 
       run do |opts, args|
         wrap_exceptions do
           config = Scripter::Config.from_yaml(File.read(Path[SCRIPT_CONFIG].expand(home: true)))
           scripter = Pod::Scripter.new(config)
-          scripter.exec(args.argv)
+          scripter.exec(opts.type, args.argv)
+        end
+      end
+    end
+
+    sub "repl" do
+      desc "run a repl"
+      usage "pod repl <type>"
+      argument "type", type: String, desc: "repl to run", required: true
+
+      run do |opts, args|
+        wrap_exceptions do
+          config = Scripter::Config.from_yaml(File.read(Path[SCRIPT_CONFIG].expand(home: true)))
+          scripter = Pod::Scripter.new(config)
+          scripter.repl(args.type, args.argv.shift(0))
         end
       end
     end
@@ -342,4 +357,5 @@ end
 Log.info { "Logging at: #{severity}" }
 
 Colorize.on_tty_only!
+Log.debug { "ARGV: #{ARGV.inspect}" }
 Pod::CLI.start(ARGV)
