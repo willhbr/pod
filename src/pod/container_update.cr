@@ -88,12 +88,24 @@ class Pod::ContainerUpdate
       io.puts "#{name} config has changed, updating..."
     end
     stop_container
-    unless self.container.auto_remove
-      remove_container
-    end
     io.puts "stopped old container"
-    id = start_container
-    io.puts "started new container: #{id.truncated}"
+    old_name = nil
+    unless self.container.auto_remove
+      old_name = rename_container
+      io.puts "renamed old container to #{old_name}"
+    end
+    begin
+      id = start_container
+      io.puts "started new container: #{id.truncated}"
+      remove_container
+    rescue ex : Pod::Exception
+      unless old_name.nil?
+        io.puts "failed to update #{@config.name}"
+        io.puts "restarting old container #{self.container.id.truncated}"
+        restart_old_container
+      end
+      raise ex
+    end
   end
 
   private def to_lines(lines)
@@ -141,7 +153,18 @@ class Pod::ContainerUpdate
     Updater.run({"stop", self.container.id}, remote: @remote)
   end
 
+  private def rename_container
+    name = "#{@config.name}_old_#{self.container.id.truncated}"
+    Updater.run({"rename", self.container.id, name}, remote: @remote)
+    name
+  end
+
   private def remove_container
     Updater.run({"rm", self.container.id}, remote: @remote)
+  end
+
+  private def restart_old_container
+    Updater.run({"rename", self.container.id, self.container.name}, remote: @remote)
+    Updater.run({"start", self.container.id}, remote: @remote)
   end
 end

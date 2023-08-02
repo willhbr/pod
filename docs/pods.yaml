@@ -15,6 +15,5 @@ containers:
     ports:
       4300: 80
     interactive: true
-    autoremove: true
     args:
       - --future

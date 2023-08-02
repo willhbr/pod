@@ -22,8 +22,6 @@ def exec_podman(args, remote = nil)
 end
 
 def wrap_exceptions
-  yield
-  return
   begin
     yield
   rescue ex : Pod::Exception
