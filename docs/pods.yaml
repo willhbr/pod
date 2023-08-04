@@ -15,5 +15,7 @@ containers:
     ports:
       4300: 80
     interactive: true
+    health:
+      command: curl localhost
     args:
       - --future

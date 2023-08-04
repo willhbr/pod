@@ -179,6 +179,21 @@ module Pod::Config
     getter volumes = Hash(String, String).new
     getter ports = Hash(Int32, String).new
 
+    # helth
+    class HealthConfig
+      include JSON::Serializable
+      include YAML::Serializable
+      include YAML::Serializable::Strict
+      getter command : YAML::Any
+      getter interval : String? = nil
+      getter on_failure : String? = nil
+      getter retries : Int32? = nil
+      getter start_period : String? = nil
+      getter timeout : String? = nil
+    end
+
+    getter health : HealthConfig? = nil
+
     getter remote : String? = nil
 
     def initialize(@name, @image)
@@ -223,6 +238,25 @@ module Pod::Config
       end
       if @autoremove
         run_args["rm"] = YAML::Any.new(true)
+      end
+
+      if health = @health
+        run_args["health-cmd"] = health.command
+        if interval = health.interval
+          run_args["health-interval"] = YAML::Any.new(interval)
+        end
+        if on_failure = health.on_failure
+          run_args["health-on-failure"] = YAML::Any.new(on_failure)
+        end
+        if retries = health.retries
+          run_args["health-retries"] = YAML::Any.new(retries)
+        end
+        if start_period = health.start_period
+          run_args["health-start-period"] = YAML::Any.new(start_period)
+        end
+        if timeout = health.timeout
+          run_args["health-timeout"] = YAML::Any.new(timeout)
+        end
       end
 
       @bind_mounts.each do |source, dest|
