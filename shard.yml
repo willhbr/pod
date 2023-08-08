@@ -6,9 +6,9 @@ authors:
 
 targets:
   pod:
-    main: src/pod.cr
+    main: src/cli.cr
 
-crystal: 1.8.1
+crystal: 1.9.2
 
 license: MIT
 

@@ -341,19 +341,3 @@ class Pod::CLI < Clim
     end
   end
 end
-
-default = Log::Severity::Error
-{% unless flag? :release %}
-  default = Log::Severity::Debug
-{% end %}
-
-severity = Log::Severity.parse?(ENV["POD_LOG_LEVEL"]? || "error") || default
-
-Log.setup do |l|
-  l.stderr(severity: severity)
-end
-Log.info { "Logging at: #{severity}" }
-
-Colorize.on_tty_only!
-Log.debug { "ARGV: #{ARGV.inspect}" }
-Pod::CLI.start(ARGV)

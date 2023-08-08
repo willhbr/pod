@@ -16,6 +16,6 @@ containers:
       4300: 80
     interactive: true
     health:
-      command: curl localhost
+      command: curl --fail --max-time 5 localhost
     args:
       - --future
