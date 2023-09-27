@@ -1,0 +1,5 @@
+FROM docker.io/crystallang/crystal:latest
+WORKDIR /src
+COPY shard.yml .
+RUN shards install
+ENTRYPOINT shards build --error-trace --release --progress

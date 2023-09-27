@@ -143,8 +143,7 @@ class Pod::CLI < Clim
         wrap_exceptions do
           config = Config.load_config!(opts.config)
           containers = config.get_containers(args.target || config.defaults.update)
-          store = StateStore.new(Path[STORE_PATH].expand(home: true))
-          manager = Updater.new(STDOUT, opts.remote, store)
+          manager = Updater.new(STDOUT, opts.remote)
           configs = containers.map { |c| c[1] }
           configs.each do |conf|
             conf.apply_overrides! remote: opts.remote, detached: true
@@ -156,12 +155,10 @@ class Pod::CLI < Clim
               print "update? [y/N] "
               if (inp = gets) && inp.chomp.downcase == "y"
                 manager.update_containers(updates)
-                store.save
               end
             end
           else
             manager.update_containers(updates)
-            store.save
           end
         end
       end
@@ -179,59 +176,10 @@ class Pod::CLI < Clim
         wrap_exceptions do
           config = Config.load_config!(opts.config)
           containers = config.get_containers(args.target || config.defaults.update)
-          manager = Updater.new(STDOUT, opts.remote,
-            StateStore.new(Path[STORE_PATH].expand(home: true)))
+          manager = Updater.new(STDOUT, opts.remote)
           configs = containers.map { |c| c[1] }
           updates = manager.calculate_updates(configs)
           manager.print_changes(updates)
-        end
-      end
-    end
-
-    sub "revert" do
-      alias_name "undo", "rollback"
-      desc "revert an update"
-      usage "pod revert [options]"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
-      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
-      option "-d", "--diff", type: Bool, desc: "Show a diff", default: false
-      argument "target", type: String, desc: "target to run", required: false
-
-      run do |opts, args|
-        wrap_exceptions do
-          config = Config.load_config!(opts.config)
-          containers = config.get_containers(args.target || config.defaults.update)
-          store = StateStore.new(Path[STORE_PATH].expand(home: true))
-          manager = Updater.new(STDOUT, opts.remote, store)
-          states = Array(StateStore::ContainerState).new
-          containers.each do |name, container|
-            versions = store[opts.remote || container.remote, container.name]
-            if versions.empty?
-              STDERR.puts "No update history for #{name}"
-              next
-            end
-            versions.each_with_index do |version, index|
-              puts "[#{index + 1}] #{version.update_time}: #{version.config.image.truncated}"
-            end
-            print "select version [1-#{versions.size}]: "
-            unless (choice = gets.try(&.chomp)) && (idx = choice.to_i?)
-              raise Pod::Exception.new("enter an index, 1-#{versions.size}")
-            end
-            version = versions[idx - 1]
-            states << version
-          end
-          updates = manager.calculate_reversions(states)
-          if opts.diff
-            manager.print_changes(updates)
-            if updates.any? &.actionable?
-              print "update? [y/N] "
-              if (inp = gets) && inp.chomp.downcase == "y"
-                manager.update_containers(updates)
-              end
-            end
-          else
-            manager.update_containers(updates)
-          end
         end
       end
     end
@@ -245,7 +193,7 @@ class Pod::CLI < Clim
 
       run do |opts, args|
         exec_podman({"exec", "-it", args.target, "sh", "-c",
-                     "if which bash > /dev/null 2>&1; then bash; else sh; fi"}, remote: opts.remote)
+                     Runner::MAGIC_SHELL}, remote: opts.remote)
       end
     end
 
@@ -257,6 +205,29 @@ class Pod::CLI < Clim
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       run do |opts, args|
         exec_podman({"attach", args.target}, remote: opts.remote)
+      end
+    end
+
+    sub "enter" do
+      alias_name "e"
+      desc "run a shell from an entrypoint"
+      usage "pod enter <entrypoint>"
+      argument "entrypoint", type: String, desc: "entrypoint to run", required: false
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
+      option "-s", "--show", type: Bool, desc: "Show command only", default: false
+      run do |opts, args|
+        wrap_exceptions do
+          extra_args = args.argv.skip_while { |a| a != "--" }.to_a
+          if extra_args.empty?
+            extra_args = nil
+          else
+            extra_args = extra_args[1...]
+          end
+          config = Config.load_config!(opts.config)
+          Runner.new(config, opts.remote, opts.show, STDOUT).enter(
+            args.entrypoint, extra_args)
+        end
       end
     end
 
@@ -306,7 +277,11 @@ class Pod::CLI < Clim
       run do |opts, args|
         wrap_exceptions do
           config = Config.load_config!(opts.config)
-          puts Set(String).new(config.images.keys + config.containers.keys + config.groups.keys).join('\n')
+          puts Set(String).new(
+            config.images.keys +
+            config.containers.keys +
+            config.entrypoints.keys
+          ).join('\n')
         end
       end
     end

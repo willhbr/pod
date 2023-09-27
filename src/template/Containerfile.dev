@@ -1,6 +1,6 @@
 FROM docker.io/crystallang/crystal:latest-alpine AS builder
 WORKDIR /src
-COPY shard.yaml .
+COPY shard.yml .
 # Get dependencies
 RUN shards install
 # Do the actual compilation and running in the entrypoint allows us to

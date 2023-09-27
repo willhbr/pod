@@ -1,0 +1,18 @@
+images:
+  prod:
+    tag: pod:prod-latest
+    from: Containerfile.prod
+
+containers:
+  install:
+    name: pod-install
+    image: localhost/pod:prod-latest
+    interactive: true
+    autoremove: true
+    bind_mounts:
+      .: /src
+      .cache: /root/.cache
+
+entrypoints:
+  default:
+    image: localhost/pod:prod-latest

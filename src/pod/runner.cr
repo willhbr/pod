@@ -1,4 +1,6 @@
 class Pod::Runner
+  MAGIC_SHELL = "if which bash > /dev/null 2>&1; then bash; else sh; fi"
+
   def initialize(@config : Config::File, @remote : String?, @show : Bool, @io : IO)
   end
 
@@ -40,6 +42,21 @@ class Pod::Runner
         raise Pod::Exception.new("failed to run #{name}")
       end
     end
+  end
+
+  def enter(target : String?, extra_args : Enumerable(String)?)
+    entrypoint = @config.entrypoints[target]?
+    if entrypoint.nil?
+      if default = @config.defaults.entrypoint
+        entrypoint = @config.entrypoints[default]
+      elsif @config.entrypoints.size == 1
+        entrypoint = @config.entrypoints.values.first
+      else
+        raise "no entrypoint specified"
+      end
+    end
+    args = entrypoint.to_command(extra_args)
+    status = run(args, exec: true)
   end
 
   def push(target : String?)

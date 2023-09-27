@@ -4,3 +4,4 @@
 *.dwarf
 /docs/_site/
 /docs/.jekyll-cache/
+.cache

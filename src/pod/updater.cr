@@ -9,7 +9,7 @@ class String
 end
 
 class Pod::Updater
-  def initialize(@io : IO, @remote : String?, @state_store : Pod::StateStore)
+  def initialize(@io : IO, @remote : String?)
   end
 
   def self.run(args : Enumerable(String), remote : String?) : String
@@ -98,9 +98,6 @@ class Pod::Updater
   def update_containers(updates : Array(ContainerUpdate))
     updates.each do |info|
       info.update(@io)
-      if info.actionable?
-        @state_store.record(info.config)
-      end
     end
   end
 
@@ -142,23 +139,5 @@ class Pod::Updater
         info.print(@io, inspection)
       end
     end
-  end
-
-  def calculate_reversions(states : Array(StateStore::ContainerState))
-    configs_per_host = Hash(String?, Array(StateStore::ContainerState)).new do |hash, key|
-      hash[key] = Array(StateStore::ContainerState).new
-    end
-    states.each do |state|
-      configs_per_host[@remote || state.config.remote] << state
-    end
-    changes = Array(ContainerUpdate).new
-    configs_per_host.each do |host, states|
-      existing_containers = self.get_containers(states.map { |s| s.config.name }, host).to_h { |c| {c.name, c} }
-      states.each do |state|
-        container = existing_containers.delete(state.config.name)
-        changes << calculate_update(state.config, container, host)
-      end
-    end
-    changes
   end
 end

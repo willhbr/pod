@@ -44,14 +44,12 @@ module Pod::Config
 
   class File
     include YAML::Serializable
-    @[YAML::Field(ignore: true)]
-    getter working_dir = Dir.current
-    getter project : String = Path[Dir.current].basename
-    getter includes = Array(String).new
+
     getter defaults = Defaults.new
     getter images = Hash(String, Config::Image).new
     getter containers = Hash(String, Config::Container).new
     getter groups = Hash(String, Set(String)).new
+    getter entrypoints = Hash(String, Entrypoint).new
 
     def get_images(target : String?) : Array({String, Config::Image})
       if target.nil?
@@ -99,6 +97,7 @@ module Pod::Config
     getter build : String? = nil
     getter run : String? = nil
     getter update : String? = nil
+    getter entrypoint : String? = nil
 
     def initialize(*, @build = nil, @run = nil, @update = nil)
     end
@@ -322,6 +321,56 @@ module Pod::Config
         dig.update(arg)
       end
       dig.hexfinal
+    end
+  end
+
+  # For running a throw-away shell in within an image
+  class Entrypoint
+    include YAML::Serializable
+
+    # for podman
+    getter podman_flags = KVMapping(String, YAML::Any).new
+    getter run_flags = KVMapping(String, YAML::Any).new
+
+    getter remote : String? = nil
+    getter image : String
+    getter shell : Array(String) | String = Runner::MAGIC_SHELL
+
+    def to_command(
+      cmd_args : Enumerable(String)?
+    )
+      args = Array(String).new
+      podman_args = @podman_flags.dup
+      if remote = @remote
+        podman_args.replace "remote", YAML::Any.new(true)
+        podman_args.replace "connection", YAML::Any.new(remote)
+      end
+      args.concat Config.as_args(podman_args)
+
+      args << "run"
+      run_args = @run_flags.dup
+      run_args["tty"] = YAML::Any.new(true)
+      run_args["interactive"] = YAML::Any.new(true)
+      run_args["rm"] = YAML::Any.new(true)
+
+      run_args["workdir"] = YAML::Any.new("/src")
+      run_args["mount"] = YAML::Any.new("type=bind,src=.,dst=/src")
+
+      shell = @shell
+      if shell.is_a? String
+        run_args["entrypoint"] = YAML::Any.new({"sh", "-c", shell}.to_json)
+      else
+        run_args["entrypoint"] = YAML::Any.new(shell.to_json)
+      end
+
+      args.concat Config.as_args(run_args)
+
+      args << @image
+
+      if ca = cmd_args
+        args.concat ca
+      end
+      args
     end
   end
 end
