@@ -13,7 +13,7 @@ module Pod::Config
       if ::File.exists? target
         Log.info { "Loading config from #{target}" }
         config = Config::File.from_yaml(::File.read(target))
-        Log.info { config.inspect }
+        Log.info { config.pretty_inspect }
         return config
       end
     end

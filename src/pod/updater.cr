@@ -58,6 +58,7 @@ class Pod::Updater
     if images.size != 1
       raise Pod::Exception.new "multiple images match: #{image} (#{images.join(", ")})"
     end
+    Log.info { "Image #{image} id: #{images[0].id}" }
     return images[0]
   end
 
@@ -104,9 +105,6 @@ class Pod::Updater
   end
 
   def calculate_updates(input_configs : Array(Config::Container)) : Array(ContainerUpdate)
-    if Set(String).new(input_configs.map(&.name)).size != input_configs.size
-      raise Pod::Exception.new("container names must be unique for update to work")
-    end
     configs_per_host = Hash(String?, Array(Config::Container)).new do |hash, key|
       hash[key] = Array(Config::Container).new
     end
@@ -115,6 +113,9 @@ class Pod::Updater
     end
     changes = Array(ContainerUpdate).new
     configs_per_host.each do |host, configs|
+      if Set(String).new(configs.map(&.name)).size != configs.size
+        raise Pod::Exception.new("container names must be unique for update to work")
+      end
       existing_containers = self.get_containers(configs.map(&.name), host).to_h { |c| {c.name, c} }
       configs.each do |config|
         container = existing_containers.delete(config.name)

@@ -76,8 +76,10 @@ class Pod::Runner
       @io.puts "podman #{Process.quote(args)}"
       return Process::Status.new(0)
     elsif exec
+      Log.debug { "exec: podman #{Process.quote(args)}" }
       Process.exec(command: "podman", args: args)
     else
+      Log.debug { "run: podman #{Process.quote(args)}" }
       Process.run(command: "podman", args: args,
         input: Process::Redirect::Close, output: Process::Redirect::Inherit,
         error: Process::Redirect::Inherit)
