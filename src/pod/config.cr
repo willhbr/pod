@@ -336,6 +336,9 @@ module Pod::Config
     getter image : String
     getter shell : Array(String) | String = Runner::MAGIC_SHELL
 
+    def initialize(@image)
+    end
+
     def to_command(
       cmd_args : Enumerable(String)?
     )
