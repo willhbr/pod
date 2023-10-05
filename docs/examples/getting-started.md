@@ -106,7 +106,7 @@ Hello pods!
 
 Perfect!
 
-> you can set `defaults.build` and `defaults.run` in `pods.yaml` to specify the default target to build and run, which saves you from specifying it every time. This shortens the above command to just `pod r`.
+> You can set `defaults.build` and `defaults.run` in `pods.yaml` to specify the default target to build and run, which saves you from specifying it every time. This shortens the above command to just `pod r`.
 
 Now we can do the easy part—write a useful application. You go off and do that, then we can continue and make a production image.
 

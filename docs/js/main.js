@@ -31,6 +31,9 @@ const subtitles = [
   'shell $container',
   'logs $container',
   'attach $container',
+  'init',
+  'script main.rb',
+  'repl python',
 ];
 
 const animateTitle = (lastIdx) => {
