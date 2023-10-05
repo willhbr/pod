@@ -77,7 +77,7 @@ $ pod build
 $ pod run
 ```
 
-See [more info on the config file](/examples/config).
+See [Getting Started](/examples/getting-started) for more detail, and [get more info on the config file](/examples/config).
 
 ## Script
 
