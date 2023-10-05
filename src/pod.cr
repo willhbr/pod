@@ -246,25 +246,12 @@ class Pod::CLI < Clim
 
     sub "init" do
       alias_name "i"
-      desc "initialise a config file"
+      desc "setup a pod project"
       usage "pod init"
 
       run do |opts, args|
         wrap_exceptions do
-          project = Path[Dir.current].basename
-          unless File.exists? DEFAULT_CONFIG_FILE
-            File.open(DEFAULT_CONFIG_FILE, "w") do |f|
-              ECR.embed("src/template/pods.yaml", f)
-            end
-          end
-          unless File.exists? "Containerfile.dev"
-            File.write "Containerfile.dev", ECR.render("src/template/Containerfile.dev")
-          end
-          unless File.exists? "Containerfile.prod"
-            File.write "Containerfile.prod", ECR.render("src/template/Containerfile.prod")
-          end
-          puts "Initialised pod config files in #{project}."
-          puts "Please edit to taste."
+          Pod::Initializer.run
         end
       end
     end

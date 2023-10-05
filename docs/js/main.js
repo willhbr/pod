@@ -78,6 +78,6 @@ addEventListener('load', () => {
   });
 
   window.setTimeout(() => {
-    animateTitle();
+    animateTitle(0);
   }, 2000);
 });

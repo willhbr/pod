@@ -1,12 +1,4 @@
-# Probably a good idea to use a two-stage image  to build the release version
-FROM docker.io/crystallang/crystal:latest-alpine AS builder
+FROM <%= image %>
 WORKDIR /src
 COPY . .
-# Get dependencies
-RUN shards install
-RUN shards build --error-trace --release --progress --static
-
-FROM docker.io/alpine:latest
-COPY --from=builder /src/bin/<%= project %> /bin/<%= project %>
-# flags and arguments defined in pods.yaml will be appended to this
-ENTRYPOINT ["/bin/<%= project %>"]
+ENTRYPOINT ["echo", "this should be a command to build your project for release"]
