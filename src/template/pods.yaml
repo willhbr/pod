@@ -18,7 +18,7 @@ containers:
     autoremove: true
     bind_mounts:
       # binding the source directory lets us re-run changes without rebuilding
-      src: /src/<%= source_dir %>
+      <%= source_dir %>: /src/<%= source_dir %>
     # flags:
     #   # this will be passed as --flag=value
     #   flag: value
@@ -32,3 +32,9 @@ containers:
     # Pull the latest image from the registry before running it
     interactive: false
     autoremove: true
+
+# use `pod enter shell` to start a session inside a dev container.
+# useful for running code generators, etc.
+entrypoints:
+  shell:
+    image: <%= project %>:dev-latest

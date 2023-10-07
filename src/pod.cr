@@ -36,7 +36,6 @@ def wrap_exceptions
 end
 
 class Pod::CLI < Clim
-  STORE_PATH    = ENV["POD_HISTORY_STORE"]? || "~/.config/pod/"
   SCRIPT_CONFIG = ENV["POD_SCRIPT_CONFIG"]? || "~/.config/pod/script.yaml"
 
   main do

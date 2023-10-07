@@ -1,6 +1,6 @@
 FROM <%= image %>
 WORKDIR /src
-<% if ps = project_specific_setup(false) %>
+<% if ps = project_specific_setup(false, project) %>
 <%= ps %>
 <% else %>
 COPY . .

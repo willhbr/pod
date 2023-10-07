@@ -1,6 +1,6 @@
 FROM <%= image %>
 WORKDIR /src
-<% if ps = project_specific_setup(true) %>
+<% if ps = project_specific_setup(true, project) %>
 <%= ps %>
 <% else %>
 # Do the actual compilation and running in the entrypoint allows us to

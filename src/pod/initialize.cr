@@ -24,10 +24,7 @@ class Pod::Initializer
     print TITLE
     workdir = Path[Dir.current]
     name = prompt("Project name", [] of String, workdir.basename)
-    image = prompt("Base image for development")
-    if image
-      pull_image(image)
-    end
+    image = get_image
     if name != workdir.basename
       workdir /= name
       FileUtils.mkdir_p name
@@ -35,34 +32,7 @@ class Pod::Initializer
     end
     Log.info { "Making project #{name} in #{workdir}" }
     if image && confirm("Enter container to setup project now?")
-      container_name = "#{name}-setup"
-      first = true
-      loop do
-        start = Time.utc
-        status = if first
-                   run({
-                     "run", "-it", "--name", container_name,
-                     "--workdir", "/#{name}",
-                     "--entrypoint", {"sh", "-c", Runner::MAGIC_SHELL}.to_json,
-                     "--mount", "type=bind,src=.,dst=/#{name}",
-                     "--env", "PS1=#{name} $ ",
-                     image,
-                   })
-                 else
-                   Log.info { "Restarting prev setup container..." }
-                   run({"restart", container_name})
-                 end
-        first = false
-        if !status.success? && (Time.utc - start) < 3.seconds
-          puts "Container failed fast, make sure the image is available and supports a shell"
-        end
-        if confirm("Setup complete?")
-          break
-        end
-      end
-      unless run({"rm", container_name}).success?
-        puts "unable to remove setup container (#{container_name}) you can delete it later"
-      end
+      do_container_setup(name, image)
     end
     source_dir = get_source_dir(workdir) || "<<SOURCE DIRECTORY>>"
     image ||= "<<YOUR IMAGE>>"
@@ -76,9 +46,42 @@ class Pod::Initializer
     File.write "Containerfile.prod", ECR.render "src/template/Containerfile.prod"
   end
 
+  def do_container_setup(name, image)
+    container_name = "#{name}-setup"
+    first = true
+    loop do
+      start = Time.utc
+      if first
+        status = run({
+          "run", "-it", "--name", container_name,
+          "--workdir", "/#{name}",
+          "--entrypoint", {"sh", "-c", Runner::MAGIC_SHELL}.to_json,
+          "--mount", "type=bind,src=.,dst=/#{name}",
+          "--env", "PS1=#{name} $ ",
+          image,
+        })
+      else
+        Log.info { "Restarting prev setup container..." }
+        status = run({"restart", container_name})
+      end
+      first = false
+      if !status.success? && (Time.utc - start) < 3.seconds
+        puts "Container failed fast, make sure the image is available and supports a shell"
+      end
+      if confirm("Setup complete?")
+        break
+      end
+    end
+    print "Removing container used for setup: "
+    unless run({"rm", container_name}).success?
+      puts "unable to remove setup container (#{container_name}) you can delete it later"
+    end
+    puts
+  end
+
   COPY_ALL = "COPY . ."
 
-  def project_specific_setup(is_dev)
+  def project_specific_setup(is_dev, name)
     if File.exists? "./shard.yml"
       return String.build do |io|
         if is_dev
@@ -114,7 +117,7 @@ class Pod::Initializer
         else
           io.puts COPY_ALL
           io.puts %(RUN cargo build --release)
-          io.puts %(ENTRYPOINT [])
+          io.puts %(ENTRYPOINT ["/src/target/release/#{name}"])
         end
       end
     end
@@ -125,8 +128,8 @@ class Pod::Initializer
           io.puts %(ENTRYPOINT ["swift", "run", "--"])
         else
           io.puts COPY_ALL
-          io.puts %(RUN swift build --release)
-          io.puts %(ENTRYPOINT [])
+          io.puts %(RUN swift build -c release)
+          io.puts %(ENTRYPOINT ["/src/.build/release/#{name}"])
         end
       end
     end
@@ -155,9 +158,19 @@ class Pod::Initializer
     end
   end
 
-  def pull_image(image)
-    unless run({"pull", image}).success?
-      raise Pod::Exception.new "Failed to pull image: #{image}"
+  def get_image
+    loop do
+      unless image = prompt("Base image for development")
+        puts "not adding image, you can do that later"
+        return nil
+      end
+
+      if run({"pull", image}).success?
+        return image
+      end
+      puts
+      puts "Unable to pull #{image}"
+      puts "Make sure the image and tag is correct"
     end
   end
 
