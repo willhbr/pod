@@ -1,4 +1,8 @@
 FROM <%= image %>
 WORKDIR /src
+<% if ps = project_specific_setup(false) %>
+<%= ps %>
+<% else %>
 COPY . .
 ENTRYPOINT ["echo", "this should be a command to build your project for release"]
+<% end %>

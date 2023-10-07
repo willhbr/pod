@@ -13,6 +13,7 @@ class Pod::Initializer
  | '_ \\/ _ \\/ _` |
  | .__/\\___/\\__,_|
  |_|
+
 "
 
   def self.run
@@ -20,7 +21,7 @@ class Pod::Initializer
   end
 
   def run
-    puts TITLE
+    print TITLE
     workdir = Path[Dir.current]
     name = prompt("Project name", [] of String, workdir.basename)
     image = prompt("Base image for development")
@@ -73,6 +74,62 @@ class Pod::Initializer
     File.write "pods.yaml", ECR.render "src/template/pods.yaml"
     File.write "Containerfile.dev", ECR.render "src/template/Containerfile.dev"
     File.write "Containerfile.prod", ECR.render "src/template/Containerfile.prod"
+  end
+
+  COPY_ALL = "COPY . ."
+
+  def project_specific_setup(is_dev)
+    if File.exists? "./shard.yml"
+      return String.build do |io|
+        if is_dev
+          io.puts "COPY shard.yml ."
+          io.puts "RUN shards install"
+          io.puts %(ENTRYPOINT ["shards", "run", "--error-trace", "--"])
+        else
+          io.puts COPY_ALL
+          io.puts "RUN shards build --error-trace --release"
+          io.puts %(ENTRYPOINT ["/src/bin/project"])
+        end
+      end
+    end
+    if File.exists? "./Gemfile"
+      return String.build do |io|
+        if is_dev
+          io.puts "COPY Gemfile ."
+          io.puts "RUN bundle install"
+          io.puts %(ENTRYPOINT ["ruby", "..."])
+        else
+          io.puts "COPY Gemfile ."
+          io.puts "RUN bundle install"
+          io.puts COPY_ALL
+          io.puts %(ENTRYPOINT ["ruby", "..."])
+        end
+      end
+    end
+    if File.exists? "./Cargo.toml"
+      return String.build do |io|
+        if is_dev
+          io.puts "COPY Cargo.toml ."
+          io.puts %(ENTRYPOINT ["cargo", "run", "--"])
+        else
+          io.puts COPY_ALL
+          io.puts %(RUN cargo build --release)
+          io.puts %(ENTRYPOINT [])
+        end
+      end
+    end
+    if File.exists? "./Package.swift"
+      return String.build do |io|
+        if is_dev
+          io.puts "COPY Package.swift ."
+          io.puts %(ENTRYPOINT ["swift", "run", "--"])
+        else
+          io.puts COPY_ALL
+          io.puts %(RUN swift build --release)
+          io.puts %(ENTRYPOINT [])
+        end
+      end
+    end
   end
 
   def get_source_dir(workdir)
