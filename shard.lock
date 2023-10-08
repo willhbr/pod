@@ -14,5 +14,5 @@ shards:
 
   geode:
     git: https://github.com/willhbr/geode.git
-    version: 0.1.0+git.commit.035c66b53c89e1202076a2c9d4660cf7156c3eb4
+    version: 0.1.0+git.commit.ca5d3362f0af0d10e0ff2e8dce3653aa90a74307
 

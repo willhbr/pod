@@ -18,12 +18,15 @@ class Pod::Updater
     end
 
     Log.debug { "Running: podman #{Process.quote(args)}" }
+    start = Time.utc
     process = Process.new("podman", args: args,
       input: Process::Redirect::Close,
       output: Process::Redirect::Pipe, error: Process::Redirect::Pipe)
     output = process.output.gets_to_end.chomp
     error = process.error.gets_to_end.chomp
-    unless process.wait.success?
+    status = process.wait
+    Log.debug { "Run in #{Time.utc - start}" }
+    unless status.success?
       raise Pod::Exception.new("Command `podman #{Process.quote(args)}` failed: #{error}")
     end
     output
@@ -45,6 +48,7 @@ class Pod::Updater
     if image.includes?('/') && !image.starts_with?("localhost/")
       # it's in a registry
       Log.info { "Trying to pull new version of #{image}" }
+      @io.puts "Pulling new version of #{image}"
       Updater.run({"pull", image, "--quiet"}, remote: remote).strip
     end
 
@@ -114,9 +118,14 @@ class Pod::Updater
         raise Pod::Exception.new("container names must be unique for update to work")
       end
       existing_containers = self.get_containers(configs.map(&.name), host).to_h { |c| {c.name, c} }
-      configs.each do |config|
-        container = existing_containers.delete(config.name)
-        changes << calculate_update(config, container, host)
+      Geode::Spindle.run do |spindle|
+        configs.each do |config|
+          # Not threadsafe at all but whatever
+          container = existing_containers.delete(config.name)
+          spindle.spawn do
+            changes << calculate_update(config, container, host)
+          end
+        end
       end
     end
     changes

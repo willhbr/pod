@@ -52,7 +52,7 @@ class Pod::Runner
             image: name
           )
         else
-          raise Pod::Exception.new("entrypoint not found: #{target}")
+          raise Pod::Exception.new("entrypoint not found: #{target}. Entrypoints are #{@config.entrypoints.keys.join(", ")}.")
         end
       end
     else

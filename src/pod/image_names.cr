@@ -48,8 +48,10 @@ module Pod::Images
   end
 
   def self.load_images(remote : String?)
+    start = Time.utc
     images = Array(Podman::Image).from_json(
       Updater.run(%w(image ls --format json), remote: remote))
+    Log.debug { "Loaded #{images.size} podman images in #{Time.utc - start}" }
     @@names[remote] = images.to_h { |i| {i.id, i} }
   end
 end

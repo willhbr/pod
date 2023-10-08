@@ -4,7 +4,7 @@ defaults:
 
 images:
   dev:
-    tag: pod:prod-latest
+    tag: pod:dev-latest
     from: Containerfile.dev
   install:
     tag: pod:prod-latest
@@ -13,11 +13,11 @@ images:
 containers:
   dev:
     name: pod-install
-    image: localhost/pod:prod-latest
+    image: localhost/pod:dev-latest
     interactive: true
     autoremove: true
     bind_mounts:
-      .: /src
+      : /src
       .cache: /root/.cache
 
   install:
