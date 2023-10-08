@@ -55,17 +55,13 @@ update? [y/N] y
 
 ## Installation
 
-`pod` requires [Crystal][crystal] to build, see [how to install Crystal][crystal-install], and then run:
-
-[crystal]: https://crystal-lang.org
-[crystal-install]: https://crystal-lang.org/install/
+`pod` can be installed by building an image with all the necessary dependencies in it. You might need to change the base image, depending on your Linux flavour. 
 
 ```shell
 $ git clone {{ site.urls.github }}.git
 $ cd pod
-$ shards build --release --progress
-# put bin/pod somewhere on your $PATH
-$ cp bin/pod ~/.local/bin
+$ ./install.sh ~/.local/bin
+... installer will run and copy executable
 ```
 
 ## Quick Usage

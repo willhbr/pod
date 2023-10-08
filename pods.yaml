@@ -1,10 +1,17 @@
+defaults:
+  build: dev
+  run: dev
+
 images:
-  prod:
+  dev:
+    tag: pod:prod-latest
+    from: Containerfile.dev
+  install:
     tag: pod:prod-latest
     from: Containerfile.prod
 
 containers:
-  install:
+  dev:
     name: pod-install
     image: localhost/pod:prod-latest
     interactive: true
@@ -12,6 +19,12 @@ containers:
     bind_mounts:
       .: /src
       .cache: /root/.cache
+
+  install:
+    name: pod-install
+    image: localhost/pod:prod-latest
+    interactive: true
+    autoremove: true
 
 entrypoints:
   default:

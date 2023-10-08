@@ -9,13 +9,6 @@ Start by running `pod init`—this will create a directory for your project, and
 
 ```shell
 $ pod init
-
-                _
-  _ __  ___  __| |
- | '_ \/ _ \/ _` |
- | .__/\___/\__,_|
- |_|
-
 Project name [Projects] my-cool-project
 Base image for development: docker.io/crystallang/crystal:latest
 Trying to pull docker.io/crystallang/crystal:latest...
@@ -49,6 +42,7 @@ Removing container used for setup: my-cool-project-setup
  [2] spec
  [3] src
  [4] None of these
+
 Which directory has the source files? [3] 3
 Initialised project in /home/will/Projects/my-cool-project
 ```

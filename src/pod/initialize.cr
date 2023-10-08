@@ -148,6 +148,7 @@ class Pod::Initializer
       puts " [#{idx + 1}] #{entry}"
     end
     puts " [#{entries.size + 1}] None of these"
+    puts
 
     selection = prompt("Which directory has the source files?", default: default.to_s).to_i
     selection -= 1
