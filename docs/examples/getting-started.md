@@ -5,21 +5,67 @@ layout: page
 
 This page shows you how to setup a project using pod. It assumes a reasonable understanding of Podman and how to write containerfiles.
 
-Start by creating a new directory for our project, and using `pod init` to create the base config files:
+Start by running `pod init`—this will create a directory for your project, and let you run any language-specific initialisers to scaffold your project.
 
 ```shell
-$ mkdir my-project
-$ cd my-project
 $ pod init
-Initialised pod config files in my-project.
-Please edit to taste.
-$ ls
-Containerfile.dev  Containerfile.prod  pods.yaml
+
+                _
+  _ __  ___  __| |
+ | '_ \/ _ \/ _` |
+ | .__/\___/\__,_|
+ |_|
+
+Project name [Projects] my-cool-project
+Base image for development: docker.io/crystallang/crystal:latest
+Trying to pull docker.io/crystallang/crystal:latest...
+Getting image source signatures
+Copying blob 96ac260f719c skipped: already exists
+Copying blob 9d19ee268e0d skipped: already exists
+Copying blob e798b0d318d7 skipped: already exists
+Copying blob 76639df9a8a9 skipped: already exists
+Copying config 3cd9bc411b done
+Writing manifest to image destination
+Storing signatures
+3cd9bc411bf1062d92831ab85c70f81bd1ee7993d21a5ffd53d674b52da1868d
+Enter container to setup project now? [Y/n]
+root@aec5d6273248:/my-cool-project# ls
+root@aec5d6273248:/my-cool-project# crystal init app .
+    create  /my-cool-project/.gitignore
+    create  /my-cool-project/.editorconfig
+    create  /my-cool-project/LICENSE
+    create  /my-cool-project/README.md
+    create  /my-cool-project/shard.yml
+    create  /my-cool-project/src/my-cool-project.cr
+    create  /my-cool-project/spec/spec_helper.cr
+    create  /my-cool-project/spec/my-cool-project_spec.cr
+Initialized empty Git repository in /my-cool-project/.git/
+root@aec5d6273248:/my-cool-project# exit
+exit
+Setup complete? [Y/n]
+Removing container used for setup: my-cool-project-setup
+
+ [1] .git
+ [2] spec
+ [3] src
+ [4] None of these
+Which directory has the source files? [3] 3
+Initialised project in /home/will/Projects/my-cool-project
 ```
 
-We've got two containerfiles, and a `pods.yaml` file that tells pod what to do. You don't have to use these containerfiles, but we are going to use them to setup a project the way pod expects.
+`pod init` will ask for:
 
-`Containerfile.dev` will be used to create a development image, where we can bind-mount our source code in. This gives us a containerised environment without paying a large overhead of rebuilding an image every time we change our code (or even allowing live reloading, depending on the language we're using). The default files are setup for Crystal, but the same pattern can be used for any language.
+- Project name
+- Base image (you can change this later)
+- Directory containing source files
+
+During setup pod will run a shell using image you specified. Use this to use the build tool of your language to create a project—like `cargo init` or `npm init`. In the example above I use `crystal init app .`.
+
+> If you later want to run a shell to get access to the inner build tools (to do something like run a code generator) you can run `pod enter shell`. This is configured in the `entrypoints` section of the `pods.yaml` file.
+
+We've now got two containerfiles, and a `pods.yaml` file that tells pod what to do. Pod makes some guesses about your project to setup the containerfiles, but you should check that they make sense before building an image.
+
+`Containerfile.dev` will be used to create a development image, where we can bind-mount our source code in. This gives us a containerised environment without paying a large overhead of rebuilding an image every time we change our code (or even allowing live reloading, depending on the language we're using). This is the default file for a Crystal project:
 
 ```
 FROM docker.io/crystallang/crystal:latest-alpine
@@ -29,40 +75,7 @@ RUN shards install
 ENTRYPOINT ["shards", "run", "--error-trace", "--"]
 ```
 
-This installs any dependencies and uses `shards run` to run the default target of our project. We will need to rebuild the image if our dependencies change, but that shouldn't happen too often.
-
-Of course this won't work since we don't yet have a `shard.yml` file to copy into the image. Lots of languages use some command to generate a scaffold for the project—just like `pod init`. We can use a pod entrypoint to start a shell with the language's tools installed and our source code mounted, so any generated files are saved outside of the container.
-
-To do this we edit `pods.yaml` to define an entrypoint at the bottom:
-
-```yaml
-entrypoints:
-  crystal:
-    image: 'docker.io/crystallang/crystal:latest-alpine'
-```
-
-When we run `pod enter crystal` we should be greeted with a bash shell:
-
-```shell
-$ pod enter crystal
-/src # crystal --version
-Crystal 1.9.2 [1908c816f] (2023-07-19)
-
-LLVM: 15.0.7
-Default target: x86_64-unknown-linux-musl
-/src #
-```
-
-We can then use `crystal init app my-project .` to create a Crystal project. You could of course use `npm init`, `cargo init`, etc to create a project in another language.
-
-When we exit the container, we can see that the files created are in our working directory:
-
-```
-$ ls
-Containerfile.dev  Containerfile.prod  LICENSE  pods.yaml  README.md  shard.yml  spec  src
-```
-
-Now we've got a `shard.yml` file, we can build our dev image:
+This installs any dependencies and uses `shards run` to run the default target of our project. We will need to rebuild the image if our dependencies change, but that shouldn't happen too often. Once you're happy with the contents of `Containerfile.dev`, you can build a dev image:
 
 ```shell
 $ pod build dev
@@ -106,11 +119,11 @@ Hello pods!
 
 Perfect!
 
-> You can set `defaults.build` and `defaults.run` in `pods.yaml` to specify the default target to build and run, which saves you from specifying it every time. This shortens the above command to just `pod r`.
+> you can set `defaults.build` and `defaults.run` in `pods.yaml` to specify the default target to build and run, which saves you from specifying it every time. This shortens the above command to just `pod r`.
 
 Now we can do the easy part—write a useful application. You go off and do that, then we can continue and make a production image.
 
-`Containerfile.prod` can be very similar to our dev version, but for compiled languages we can use a two-stage containerfile to make our final image smaller. The default file looks like this:
+`Containerfile.prod` can be very similar to our dev version, but for compiled languages we can use a two-stage containerfile to make our final image smaller. For Crystal projects I use a containerfile that looks something like:
 
 ```
 FROM docker.io/crystallang/crystal:latest-alpine AS builder
@@ -145,7 +158,7 @@ We could just use `pod run prod` to run a container from our image, but that's b
 Run `pod update prod` and you should see that pod will start a new container since there isn't one running yet. (I've removed some of the default options from `containers` in `pods.yaml`, I'm assuming that you've altered the config for your job).
 
 ```shell
-$ pod start prod
+$ pod update prod
 Starting my-project-prod
 ```
 

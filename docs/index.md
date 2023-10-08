@@ -72,7 +72,7 @@ $ cp bin/pod ~/.local/bin
 
 ```shell
 $ pod init
-# edit pods.yaml and Containerfiles to taste
+# Run through guided setup
 $ pod build
 $ pod run
 ```

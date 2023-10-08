@@ -137,7 +137,7 @@ class Pod::Initializer
 
   def get_source_dir(workdir)
     entries = Dir.entries(workdir).sort.select { |e|
-      !{".", ".."}.includes?(e) && File.directory?(e)
+      !{".", "..", ".git"}.includes?(e) && File.directory?(e)
     }
 
     default = entries.size + 1

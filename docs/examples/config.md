@@ -76,4 +76,11 @@ containers:
     args:
       - positional_argument
       - --debug
+
+entrypoints:
+  # use `pod enter shell` to run a shell in a dev container
+  shell:
+    image: my-image:latest
+    shell: bash
+
 ```
