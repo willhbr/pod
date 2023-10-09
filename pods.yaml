@@ -17,7 +17,7 @@ containers:
     interactive: true
     autoremove: true
     bind_mounts:
-      : /src
+      .: /src
       .cache: /root/.cache
 
   install:

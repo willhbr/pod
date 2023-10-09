@@ -49,7 +49,8 @@ class Pod::Updater
       # it's in a registry
       Log.info { "Trying to pull new version of #{image}" }
       @io.puts "Pulling new version of #{image}"
-      Updater.run({"pull", image, "--quiet"}, remote: remote).strip
+      id = Updater.run({"pull", image, "--quiet"}, remote: remote).strip
+      @io.puts "Pulled #{image}@#{id.truncated}"
     end
 
     # it's now local
