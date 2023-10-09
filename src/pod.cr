@@ -7,6 +7,10 @@ require "ecr"
 module Pod
   DEFAULT_CONFIG_FILE = "pods.yaml"
   VERSION             = "0.1.0"
+
+  def self.build_info
+    Geode::ProgramInfo::BUILT_AT
+  end
 end
 
 def exec_podman(args, remote = nil)
@@ -42,7 +46,7 @@ class Pod::CLI < Clim
     desc "Pod CLI"
     usage "pod [sub_command] [arguments]"
 
-    version "pod version: #{Pod::VERSION}", short: "-v"
+    version "pod version: #{Pod::VERSION} (#{Pod.build_info})", short: "-v"
     help short: "-h"
 
     run do |opts, args|
