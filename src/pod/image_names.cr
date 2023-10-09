@@ -1,4 +1,5 @@
 require "json"
+require "./container_inspection_utils"
 
 class Pod::Podman::Image
   include JSON::Serializable
@@ -29,6 +30,8 @@ end
 module Pod::Images
   @@names = Hash(String?, Hash(String, Podman::Image)).new
 
+  include ContainerInspectionUtils
+
   def self.[](remote : String?, id : String) : Podman::Image?
     unless images = @@names[remote]?
       images = load_images(remote)
@@ -50,7 +53,7 @@ module Pod::Images
   def self.load_images(remote : String?)
     start = Time.utc
     images = Array(Podman::Image).from_json(
-      Updater.run(%w(image ls --format json), remote: remote))
+      ContainerInspectionUtils.run(%w(image ls --format json), remote: remote))
     Log.debug { "Loaded #{images.size} podman images in #{Time.utc - start}" }
     @@names[remote] = images.to_h { |i| {i.id, i} }
   end

@@ -5,7 +5,11 @@ default = Log::Severity::Error
   default = Log::Severity::Debug
 {% end %}
 
-severity = Log::Severity.parse?(ENV["POD_LOG_LEVEL"]? || "error") || default
+if level = ENV["POD_LOG_LEVEL"]?
+  severity = Log::Severity.parse?(level) || default
+else
+  severity = default
+end
 
 Colorize.on_tty_only!
 Log.setup do |l|

@@ -9,38 +9,9 @@ class String
 end
 
 class Pod::Updater
+  include ContainerInspectionUtils
+
   def initialize(@io : IO, @remote : String?)
-  end
-
-  def self.run(args : Enumerable(String), remote : String?) : String
-    if rem = remote
-      args = ["--remote=true", "--connection=#{rem}"].concat(args)
-    end
-
-    Log.debug { "Running: podman #{Process.quote(args)}" }
-    start = Time.utc
-    process = Process.new("podman", args: args,
-      input: Process::Redirect::Close,
-      output: Process::Redirect::Pipe, error: Process::Redirect::Pipe)
-    output = process.output.gets_to_end.chomp
-    error = process.error.gets_to_end.chomp
-    status = process.wait
-    Log.debug { "Run in #{Time.utc - start}" }
-    unless status.success?
-      raise Pod::Exception.new("Command `podman #{Process.quote(args)}` failed: #{error}")
-    end
-    output
-  end
-
-  def get_containers(names : Array(String), remote : String?) : Array(Podman::Container)
-    Array(Podman::Container).from_json(Updater.run(
-      %w(container ls -a --format json) + ["--filter=name=#{names.join('|')}"], remote: remote))
-  end
-
-  def inspect_containers(ids : Enumerable(String), remote : String?) : Array(Podman::Container::Inspect)
-    return [] of Podman::Container::Inspect if ids.empty?
-    Array(Podman::Container::Inspect).from_json(
-      Updater.run(%w(container inspect) + ids, remote: remote))
   end
 
   private def resolve_new_image(image, remote) : Podman::Image
@@ -49,7 +20,7 @@ class Pod::Updater
       # it's in a registry
       Log.info { "Trying to pull new version of #{image}" }
       @io.puts "Pulling new version of #{image}"
-      id = Updater.run({"pull", image, "--quiet"}, remote: remote).strip
+      id = ContainerInspectionUtils.run({"pull", image, "--quiet"}, remote: remote).strip
       @io.puts "Pulled #{image}@#{id.truncated}"
     end
 

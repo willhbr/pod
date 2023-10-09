@@ -43,6 +43,8 @@ module Pod::Podman
 
     @[JSON::Field(key: "State")]
     getter state : State
+    @[JSON::Field(key: "ExitCode")]
+    getter exit_code : Int32
 
     @[JSON::Field(key: "Labels")]
     @[YAML::Field(key: "labels")]

@@ -26,6 +26,22 @@ containers:
     interactive: true
     autoremove: true
 
+  test:
+    name: test-exit
+    image: alpine:latest
+    args:
+      - sh
+      - -c
+      - 'sleep 13 && exit 1'
+
+  test1:
+    name: test-exit
+    image: alpine:latest
+    args:
+      - sh
+      - -c
+      - 'top'
+
 entrypoints:
   default:
     image: localhost/pod:prod-latest

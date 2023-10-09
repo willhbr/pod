@@ -1,6 +1,7 @@
 require "./container"
 
 class Pod::ContainerUpdate
+  include ContainerInspectionUtils
   enum Reason
     Start
     Paused
@@ -94,17 +95,38 @@ class Pod::ContainerUpdate
       old_name = rename_container
       io.puts "renamed old container to #{old_name}"
     end
+    new_id : String? = nil
     begin
-      id = start_container
-      io.puts "started new container: #{id.truncated}"
+      new_id = start_container
+      io.puts "started new container: #{new_id.truncated}"
+      check_container_ok(new_id)
       remove_container
     rescue ex : Pod::Exception
       unless old_name.nil?
         io.puts "failed to update #{@config.name}"
         io.puts "restarting old container #{self.container.id.truncated}"
+        if id = new_id
+          io.puts "removing failed container"
+          ContainerInspectionUtils.run({"rm", id}, remote: @remote)
+        end
         restart_old_container
       end
       raise ex
+    end
+  end
+
+  private def check_container_ok(id)
+    # use podman-wait to wait for container to exit, kill the command if it takes longer than the timeout
+    sleep 10.seconds
+    conts = get_container_by_id(id, @remote)
+    if conts.size != 1
+      raise Pod::Exception.new "Cannot check state of container #{id} as it doesn't exist"
+    end
+    container = conts[0]
+    unless container.state.running?
+      if container.exit_code != 0
+        raise Pod::Exception.new "container exited with status #{container.exit_code}"
+      end
     end
   end
 
@@ -146,25 +168,25 @@ class Pod::ContainerUpdate
   end
 
   private def start_container
-    Updater.run(self.get_args, remote: nil)
+    ContainerInspectionUtils.run(self.get_args, remote: nil)
   end
 
   private def stop_container
-    Updater.run({"stop", self.container.id}, remote: @remote)
+    ContainerInspectionUtils.run({"stop", self.container.id}, remote: @remote)
   end
 
   private def rename_container
     name = "#{@config.name}_old_#{self.container.id.truncated}"
-    Updater.run({"rename", self.container.id, name}, remote: @remote)
+    ContainerInspectionUtils.run({"rename", self.container.id, name}, remote: @remote)
     name
   end
 
   private def remove_container
-    Updater.run({"rm", self.container.id}, remote: @remote)
+    ContainerInspectionUtils.run({"rm", self.container.id}, remote: @remote)
   end
 
   private def restart_old_container
-    Updater.run({"rename", self.container.id, self.container.name}, remote: @remote)
-    Updater.run({"start", self.container.id}, remote: @remote)
+    ContainerInspectionUtils.run({"rename", self.container.id, self.container.name}, remote: @remote)
+    ContainerInspectionUtils.run({"start", self.container.id}, remote: @remote)
   end
 end
