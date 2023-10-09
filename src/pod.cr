@@ -284,7 +284,12 @@ class Pod::CLI < Clim
 
       run do |opts, args|
         wrap_exceptions do
-          config = Scripter::Config.from_yaml(File.read(Path[SCRIPT_CONFIG].expand(home: true)))
+          path = Path[SCRIPT_CONFIG].expand(home: true)
+          unless File.exists? path
+            STDERR.puts "Script config doesn't exist in #{SCRIPT_CONFIG}"
+            exit 1
+          end
+          config = Scripter::Config.from_yaml(File.read(path))
           scripter = Pod::Scripter.new(config)
           scripter.exec(opts.type, args.argv)
         end
