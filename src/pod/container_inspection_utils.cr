@@ -1,5 +1,10 @@
 module Pod::ContainerInspectionUtils
-  def self.run(args : Enumerable(String), remote : String?) : String
+  def self.run(args, remote)
+    return run_yield(args, remote) do
+    end
+  end
+
+  def self.run_yield(args : Enumerable(String), remote : String?) : String
     if rem = remote
       args = ["--remote=true", "--connection=#{rem}"].concat(args)
     end
@@ -9,12 +14,13 @@ module Pod::ContainerInspectionUtils
     process = Process.new("podman", args: args,
       input: Process::Redirect::Close,
       output: Process::Redirect::Pipe, error: Process::Redirect::Pipe)
+    yield process
     output = process.output.gets_to_end.chomp
     error = process.error.gets_to_end.chomp
     status = process.wait
     Log.debug { "Run in #{Time.utc - start}" }
     unless status.success?
-      raise Pod::Exception.new("Command `podman #{Process.quote(args)}` failed: #{error}")
+      raise Pod::PodmanException.new("podman command failed", "podman #{Process.quote(args)}", error)
     end
     output
   end

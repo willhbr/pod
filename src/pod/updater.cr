@@ -51,11 +51,6 @@ class Pod::Updater
         remote)
     end
 
-    unless container.state.running?
-      return ContainerUpdate.new(:exited, config,
-        remote, container)
-    end
-
     container_hash = container.pod_hash
     config_hash = config.pod_hash(args: nil)
 
@@ -66,6 +61,11 @@ class Pod::Updater
       return ContainerUpdate.new(:new_config_hash, config,
         remote, container)
     else
+      unless container.state.running?
+        return ContainerUpdate.new(:exited, config,
+          remote, container)
+      end
+
       return ContainerUpdate.new(:no_update, config,
         remote, container)
     end

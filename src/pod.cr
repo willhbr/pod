@@ -29,7 +29,7 @@ def wrap_exceptions
   begin
     yield
   rescue ex : Pod::Exception
-    STDERR.puts ex.message
+    ex.print_message STDERR
     Log.notice(exception: ex) { "Pod failed" }
     exit 1
   rescue ex : ::Exception

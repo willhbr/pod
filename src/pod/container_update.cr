@@ -70,7 +70,8 @@ class Pod::ContainerUpdate
     case @reason
     when Reason::Start
       io.puts "starting #{name}"
-      start_container
+      id = start_container
+      check_container_ok(id)
       return
     when Reason::Paused
       io.puts "#{name} is paused, not updating.".colorize(:orange)
@@ -79,9 +80,9 @@ class Pod::ContainerUpdate
       io.puts "#{name} up-to-date. Last updated: #{self.container.uptime} ago."
       return
     when Reason::Exited
-      io.puts "#{name} is exited, removing and replacing..."
-      remove_container
-      start_container
+      io.puts "#{name} is exited, restarting..."
+      ContainerInspectionUtils.run({"start", self.container.id}, remote: @remote)
+      check_container_ok(self.container.id)
       return
     when Reason::DifferentImage
       io.puts "#{name} is running different image to pulled #{@config.image}"
@@ -94,19 +95,22 @@ class Pod::ContainerUpdate
     unless self.container.auto_remove
       old_name = rename_container
       io.puts "renamed old container to #{old_name}"
+    else
+      Log.info { "Not doing healthcheck on container since old version was autoremoved" }
     end
     new_id : String? = nil
     begin
       new_id = start_container
-      io.puts "started new container: #{new_id.truncated}"
+      io.puts "started new container: #{new_id.truncated}".colorize(:green)
       check_container_ok(new_id)
       remove_container
     rescue ex : Pod::Exception
       unless old_name.nil?
-        io.puts "failed to update #{@config.name}"
+        io.puts "failed to update #{@config.name}".colorize(:red)
         io.puts "restarting old container #{self.container.id.truncated}"
         if id = new_id
-          io.puts "removing failed container"
+          io.puts "removing failed container #{id.truncated}".colorize(:blue)
+          ContainerInspectionUtils.run({"stop", id}, remote: @remote)
           ContainerInspectionUtils.run({"rm", id}, remote: @remote)
         end
         restart_old_container
@@ -116,18 +120,30 @@ class Pod::ContainerUpdate
   end
 
   private def check_container_ok(id)
-    # use podman-wait to wait for container to exit, kill the command if it takes longer than the timeout
-    sleep 10.seconds
-    conts = get_container_by_id(id, @remote)
-    if conts.size != 1
-      raise Pod::Exception.new "Cannot check state of container #{id} as it doesn't exist"
+    if health = @config.health
+      Log.warn { "health checking not yet supported on Will's podman version" }
+      # check_reached_state(id, %w(healthy))
     end
-    container = conts[0]
-    unless container.state.running?
-      if container.exit_code != 0
-        raise Pod::Exception.new "container exited with status #{container.exit_code}"
+    if exit_code = check_reached_state(id, %w(stopped exited), 5.seconds)
+      logs = ContainerInspectionUtils.run({"logs", "--tail=10", id}, remote: @remote)
+      raise Pod::Exception.new(
+        "#{@config.name} exited fast with status #{exit_code}",
+        container_logs: logs)
+    end
+  end
+
+  private def check_reached_state(id : String, states, timeout : Time::Span)
+    interrupted = false
+    args = ["wait"] + states.map { |s| "--condition=#{s}" } + [id]
+    output = ContainerInspectionUtils.run_yield(args, @remote) do |process|
+      spawn do
+        sleep timeout
+        interrupted = true
+        process.terminate
       end
     end
+    return nil if interrupted
+    return output.to_i
   end
 
   private def to_lines(lines)
