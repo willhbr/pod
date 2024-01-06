@@ -21,7 +21,7 @@ class Pod::Updater
       Log.info { "Trying to pull new version of #{image}" }
       @io.puts "Pulling new version of #{image}"
       id = ContainerInspectionUtils.run({"pull", image, "--quiet"}, remote: remote).strip
-      @io.puts "Pulled #{image}@#{id.truncated}"
+      @io.puts "Pulled #{image}@#{id.truncated}".colorize(:green)
     end
 
     # it's now local

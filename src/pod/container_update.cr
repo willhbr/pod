@@ -25,24 +25,25 @@ class Pod::ContainerUpdate
   end
 
   def print(io, inspect : Podman::Container::Inspect?)
+    name = @config.name
     case @reason
     when Reason::Bounce
-      io.puts "bounce: #{config.name}".colorize(:green)
+      io.puts "bounce: #{name}".colorize(:green)
     when Reason::Start
-      io.puts "start: #{@config.name}".colorize(:green)
+      io.puts "start: #{name}".colorize(:green)
       print_args_diff(io, [] of String, self.get_args)
     when Reason::Paused
-      io.puts "ignoring: #{@config.name} (container paused)".colorize(:yellow)
+      io.puts "ignoring: #{name} (container paused)".colorize(:yellow)
     when Reason::NoUpdate
-      io.puts "no update: #{@config.name}"
+      io.puts "no update: #{name}. Last updated: #{self.container.uptime} ago.".colorize(:magenta)
     when Reason::Exited
-      io.puts "restart: #{@config.name} (currently exited)".colorize(:green)
+      io.puts "restart: #{name} (currently exited)".colorize(:green)
       print_container_diff(io, inspect.not_nil!)
     when Reason::DifferentImage
-      io.puts "update: #{@config.name} (new image available)".colorize(:blue)
+      io.puts "update: #{name} (new image available)".colorize(:blue)
       print_container_diff(io, inspect.not_nil!)
     when Reason::NewConfigHash
-      io.puts "update: #{@config.name} (arguments changed)".colorize(:blue)
+      io.puts "update: #{name} (arguments changed)".colorize(:blue)
       print_container_diff(io, inspect.not_nil!)
     end
   end
@@ -79,23 +80,23 @@ class Pod::ContainerUpdate
       check_container_ok(id)
       return
     when Reason::Paused
-      io.puts "#{name} is paused, not updating.".colorize(:orange)
+      io.puts "#{name} is paused, not updating.".colorize(:yellow)
       return
     when Reason::NoUpdate
-      io.puts "#{name} up-to-date. Last updated: #{self.container.uptime} ago."
+      io.puts "#{name} up-to-date. Last updated: #{self.container.uptime} ago.".colorize(:magenta)
       return
     when Reason::Exited
-      io.puts "#{name} is exited, restarting..."
+      io.puts "#{name} is exited, restarting...".colorize(:green)
       ContainerInspectionUtils.run({"start", self.container.id}, remote: @remote)
       check_container_ok(self.container.id)
       return
     when Reason::DifferentImage
       io.puts "#{name} is running different image to pulled #{@config.image}"
     when Reason::NewConfigHash
-      io.puts "#{name} config has changed, updating..."
+      io.puts "#{name} config has changed, updating...".colorize(:blue)
     end
     stop_container
-    io.puts "stopped old container"
+    io.puts "stopped old container".colorize(:blue)
     old_name = nil
     unless self.container.auto_remove
       old_name = rename_container
@@ -119,15 +120,20 @@ class Pod::ContainerUpdate
           ContainerInspectionUtils.run({"rm", id}, remote: @remote)
         end
         restart_old_container
+        io.puts "restarted old #{@config.name}: #{self.container.id}".colorize(:green)
       end
       raise ex
     end
   end
 
   private def check_container_ok(id)
+    timeout = 5.seconds
     if health = @config.health
       Log.warn { "health checking not yet supported on Will's podman version" }
       # check_reached_state(id, %w(healthy))
+      if t = health.start_period
+        timeout = Time::Span.from_string(t) rescue 5.seconds
+      end
     end
     if exit_code = check_reached_state(id, %w(stopped exited), 5.seconds)
       logs = ContainerInspectionUtils.run({"logs", "--tail=10", id}, remote: @remote)
