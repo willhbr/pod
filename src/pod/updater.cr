@@ -11,7 +11,7 @@ end
 class Pod::Updater
   include ContainerInspectionUtils
 
-  def initialize(@io : IO, @remote : String?)
+  def initialize(@io : IO, @remote : String?, @bounce : Bool)
   end
 
   private def resolve_new_image(image, remote) : Podman::Image
@@ -65,6 +65,9 @@ class Pod::Updater
         return ContainerUpdate.new(:exited, config,
           remote, container)
       end
+      if @bounce
+        return ContainerUpdate.new(:bounce, config, remote, container)
+      end
 
       return ContainerUpdate.new(:no_update, config,
         remote, container)
@@ -72,8 +75,19 @@ class Pod::Updater
   end
 
   def update_containers(updates : Array(ContainerUpdate))
+    failures = 0
     updates.each do |info|
-      info.update(@io)
+      begin
+        info.update(@io)
+      rescue ex : Pod::Exception
+        failures += 1
+        ex.print_message @io
+      end
+    end
+    if failures == 0
+      @io.puts "#{updates.size} updates applied".colorize(:green)
+    else
+      @io.puts "#{failures} of #{updates.size} updates failed".colorize(:red)
     end
   end
 

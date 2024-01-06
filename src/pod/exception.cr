@@ -29,8 +29,8 @@ class Pod::PodmanException < Pod::Exception
       else
         io << "podman command failed"
       end
-      io << "\n\n> " << @command
-      io << "\n" << @failure
+      io << "\n\n> " << @command << "\n"
+      io.puts @failure
     end
   end
 end

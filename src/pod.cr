@@ -140,13 +140,14 @@ class Pod::CLI < Clim
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       option "-d", "--diff", type: Bool, desc: "Show a diff", default: false
+      option "-b", "--bounce", type: Bool, desc: "Force restart all containers", default: false
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
         wrap_exceptions do
           config = Config.load_config!(opts.config)
           containers = config.get_containers(args.target || config.defaults.update)
-          manager = Updater.new(STDOUT, opts.remote)
+          manager = Updater.new(STDOUT, opts.remote, opts.bounce)
           configs = containers.map { |c| c[1] }
           configs.each do |conf|
             conf.apply_overrides! remote: opts.remote, detached: true
@@ -173,13 +174,14 @@ class Pod::CLI < Clim
       usage "pod diff [options]"
       option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
+      option "-b", "--bounce", type: Bool, desc: "Force restart all containers", default: false
       argument "target", type: String, desc: "target to run", required: false
 
       run do |opts, args|
         wrap_exceptions do
           config = Config.load_config!(opts.config)
           containers = config.get_containers(args.target || config.defaults.update)
-          manager = Updater.new(STDOUT, opts.remote)
+          manager = Updater.new(STDOUT, opts.remote, opts.bounce)
           configs = containers.map { |c| c[1] }
           updates = manager.calculate_updates(configs)
           manager.print_changes(updates)

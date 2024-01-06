@@ -3,6 +3,7 @@ require "./container"
 class Pod::ContainerUpdate
   include ContainerInspectionUtils
   enum Reason
+    Bounce
     Start
     Paused
     Exited
@@ -25,6 +26,8 @@ class Pod::ContainerUpdate
 
   def print(io, inspect : Podman::Container::Inspect?)
     case @reason
+    when Reason::Bounce
+      io.puts "bounce: #{config.name}".colorize(:green)
     when Reason::Start
       io.puts "start: #{@config.name}".colorize(:green)
       print_args_diff(io, [] of String, self.get_args)
@@ -68,6 +71,8 @@ class Pod::ContainerUpdate
   def update(io)
     name = @config.name
     case @reason
+    when Reason::Bounce
+      io.puts "bouncing #{name}..."
     when Reason::Start
       io.puts "starting #{name}"
       id = start_container
@@ -135,7 +140,7 @@ class Pod::ContainerUpdate
   private def check_reached_state(id : String, states, timeout : Time::Span)
     interrupted = false
     args = ["wait"] + states.map { |s| "--condition=#{s}" } + [id]
-    output = ContainerInspectionUtils.run_yield(args, @remote) do |process|
+    output = ContainerInspectionUtils.run_yield_nofail(args, @remote) do |process|
       spawn do
         sleep timeout
         interrupted = true
