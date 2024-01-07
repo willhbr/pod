@@ -200,7 +200,8 @@ module Pod::Config
 
     def apply_overrides!(
       detached : Bool? = nil, remote : String? = nil,
-      image : String? = nil, name : String? = nil
+      image : String? = nil, name : String? = nil,
+      autoremove : Bool? = nil
     )
       unless detached.nil?
         @interactive = !detached
@@ -213,6 +214,9 @@ module Pod::Config
       end
       if name
         @name = name
+      end
+      if autoremove
+        @autoremove = autoremove
       end
     end
 

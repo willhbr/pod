@@ -159,11 +159,7 @@ class Pod::ContainerUpdate
 
   private def to_lines(lines)
     sanitise_command(lines).map_with_index do |line, i|
-      if i == 0
-        Diff::Line.new(i + 1, Process.quote(line))
-      else
-        Diff::Line.new(i + 1, "  #{Process.quote(line)}")
-      end
+      Diff::Line.new(i + 1, "  #{Process.quote(line)}")
     end
   end
 

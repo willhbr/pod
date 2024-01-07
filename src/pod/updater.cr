@@ -44,7 +44,8 @@ class Pod::Updater
     end
 
     image = self.resolve_new_image(config.image, remote)
-    config.apply_overrides! image: image.id
+    # Don't auto-remove containers so we can revert to old versions
+    config.apply_overrides! image: image.id, autoremove: false
 
     if container.nil?
       return ContainerUpdate.new(:start, config,
@@ -75,19 +76,21 @@ class Pod::Updater
   end
 
   def update_containers(updates : Array(ContainerUpdate))
+    action_count = 0
     failures = 0
     updates.each do |info|
       begin
         info.update(@io)
+        action_count += 1 if info.actionable?
       rescue ex : Pod::Exception
         failures += 1
         ex.print_message @io
       end
     end
     if failures == 0
-      @io.puts "#{updates.size} updates applied".colorize(:green)
+      @io.puts "#{action_count} updates applied".colorize(:green)
     else
-      @io.puts "#{failures} of #{updates.size} updates failed".colorize(:red)
+      @io.puts "#{failures} of #{updates.size} updates failed (#{action_count} succeeded)".colorize(:red)
     end
   end
 
