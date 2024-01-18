@@ -136,10 +136,24 @@ class Pod::ContainerUpdate
       end
     end
     if exit_code = check_reached_state(id, %w(stopped exited), 5.seconds)
-      logs = ContainerInspectionUtils.run({"logs", "--tail=10", id}, remote: @remote)
+      logs = get_logs(id, tail: 15, remote: @remote)
       raise Pod::Exception.new(
         "#{@config.name} exited fast with status #{exit_code}",
         container_logs: logs)
+    end
+  end
+
+  private def get_logs(id, tail, remote)
+    args = ["logs", "--tail", tail.to_s, id]
+    if rem = remote
+      args = ["--remote=true", "--connection=#{rem}"].concat(args)
+    end
+
+    Log.debug { "Running: podman #{Process.quote(args)}" }
+    String.build do |io|
+      Process.run("podman", args: args,
+        input: Process::Redirect::Close,
+        output: io, error: io)
     end
   end
 

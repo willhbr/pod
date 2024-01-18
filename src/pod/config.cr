@@ -215,7 +215,7 @@ module Pod::Config
       if name
         @name = name
       end
-      if autoremove
+      unless autoremove.nil?
         @autoremove = autoremove
       end
     end
