@@ -1,7 +1,6 @@
 require "./container"
 
 class Pod::ContainerUpdate
-  include ContainerInspectionUtils
   enum Reason
     Bounce
     Start
@@ -87,7 +86,7 @@ class Pod::ContainerUpdate
       return
     when Reason::Exited
       io.puts "#{name} is exited, restarting...".colorize(:green)
-      ContainerInspectionUtils.run({"start", self.container.id}, remote: @remote)
+      Podman.run_capture_stdout({"start", self.container.id}, remote: @remote)
       check_container_ok(self.container.id)
       return
     when Reason::DifferentImage
@@ -116,8 +115,8 @@ class Pod::ContainerUpdate
         io.puts "restarting old container #{self.container.id.truncated}"
         if id = new_id
           io.puts "removing failed container #{id.truncated}".colorize(:blue)
-          ContainerInspectionUtils.run({"stop", id}, remote: @remote)
-          ContainerInspectionUtils.run({"rm", id}, remote: @remote)
+          Podman.run_capture_stdout({"stop", id}, remote: @remote)
+          Podman.run_capture_stdout({"rm", id}, remote: @remote)
         end
         restart_old_container
         io.puts "restarted old #{@config.name}: #{self.container.id}".colorize(:green)
@@ -126,7 +125,7 @@ class Pod::ContainerUpdate
     end
   end
 
-  private def check_container_ok(id)
+  private def check_container_ok(id : String)
     timeout = 5.seconds
     if health = @config.health
       Log.warn { "health checking not yet supported on Will's podman version" }
@@ -135,40 +134,12 @@ class Pod::ContainerUpdate
         timeout = Time::Span.from_string(t) rescue 5.seconds
       end
     end
-    if exit_code = check_reached_state(id, %w(stopped exited), 5.seconds)
-      logs = get_logs(id, tail: 15, remote: @remote)
+    if exit_code = Podman.wait_until_in_state(id, @remote, %w(stopped exited), timeout)
+      logs = Podman.get_container_logs(id, tail: 15, remote: @remote)
       raise Pod::Exception.new(
         "#{@config.name} exited fast with status #{exit_code}",
         container_logs: logs)
     end
-  end
-
-  private def get_logs(id, tail, remote)
-    args = ["logs", "--tail", tail.to_s, id]
-    if rem = remote
-      args = ["--remote=true", "--connection=#{rem}"].concat(args)
-    end
-
-    Log.debug { "Running: podman #{Process.quote(args)}" }
-    String.build do |io|
-      Process.run("podman", args: args,
-        input: Process::Redirect::Close,
-        output: io, error: io)
-    end
-  end
-
-  private def check_reached_state(id : String, states, timeout : Time::Span)
-    interrupted = false
-    args = ["wait"] + states.map { |s| "--condition=#{s}" } + [id]
-    output = ContainerInspectionUtils.run_yield_nofail(args, @remote) do |process|
-      spawn do
-        sleep timeout
-        interrupted = true
-        process.terminate
-      end
-    end
-    return nil if interrupted
-    return output.to_i
   end
 
   private def to_lines(lines)
@@ -204,26 +175,26 @@ class Pod::ContainerUpdate
     @config.to_command(cmd_args: nil)
   end
 
-  private def start_container
-    ContainerInspectionUtils.run(self.get_args, remote: nil)
+  private def start_container : String
+    Podman.run_capture_stdout(self.get_args, remote: nil)
   end
 
   private def stop_container
-    ContainerInspectionUtils.run({"stop", self.container.id}, remote: @remote)
+    Podman.run_capture_stdout({"stop", self.container.id}, remote: @remote)
   end
 
   private def rename_container
     name = "#{@config.name}_old_#{self.container.id.truncated}"
-    ContainerInspectionUtils.run({"rename", self.container.id, name}, remote: @remote)
+    Podman.run_inherit_io!({"rename", self.container.id, name}, remote: @remote)
     name
   end
 
   private def remove_container
-    ContainerInspectionUtils.run({"rm", self.container.id}, remote: @remote)
+    Podman.run_capture_stdout({"rm", self.container.id}, remote: @remote)
   end
 
   private def restart_old_container
-    ContainerInspectionUtils.run({"rename", self.container.id, self.container.name}, remote: @remote)
-    ContainerInspectionUtils.run({"start", self.container.id}, remote: @remote)
+    Podman.run_inherit_io!({"rename", self.container.id, self.container.name}, remote: @remote)
+    Podman.run_inherit_io!({"start", self.container.id}, remote: @remote)
   end
 end

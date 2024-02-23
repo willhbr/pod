@@ -9,8 +9,6 @@ class String
 end
 
 class Pod::Updater
-  include ContainerInspectionUtils
-
   def initialize(@io : IO, @remote : String?, @bounce : Bool)
   end
 
@@ -20,7 +18,7 @@ class Pod::Updater
       # it's in a registry
       Log.info { "Trying to pull new version of #{image}" }
       @io.puts "Pulling new version of #{image}"
-      id = ContainerInspectionUtils.run({"pull", image, "--quiet"}, remote: remote).strip
+      id = Podman.run_capture_stdout({"pull", image, "--quiet"}, remote: remote).strip
       @io.puts "Pulled #{image}@#{id.truncated}".colorize(:green)
     end
 
@@ -106,7 +104,7 @@ class Pod::Updater
       if Set(String).new(configs.map(&.name)).size != configs.size
         raise Pod::Exception.new("container names must be unique for update to work")
       end
-      existing_containers = self.get_containers(configs.map(&.name), host).to_h { |c| {c.name, c} }
+      existing_containers = Podman.get_containers(configs.map(&.name), host).to_h { |c| {c.name, c} }
       Geode::Spindle.run do |spindle|
         configs.each do |config|
           # Not threadsafe at all but whatever
@@ -129,7 +127,7 @@ class Pod::Updater
     end
     updates_per_host.each do |host, updates|
       ids = updates.reject { |u| u.container?.nil? }.map { |u| u.container.id }
-      inspections = self.inspect_containers(ids, host).to_h { |i| {i.id, i} }
+      inspections = Podman.inspect_containers(ids, host).to_h { |i| {i.id, i} }
       updates.each do |info|
         if id = info.container?.try &.id
           inspection = inspections.delete(id)

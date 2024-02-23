@@ -16,9 +16,7 @@ class Pod::Scripter
       raise Pod::Exception.new("no script config for #{file} (#{extension})")
     end
     if container.pull_latest
-      status = Process.run(command: "podman", args: {"pull", container.image},
-        input: Process::Redirect::Close, output: Process::Redirect::Inherit,
-        error: Process::Redirect::Inherit)
+      status = Podman.run_inherit_io(args: {"pull", container.image})
       unless status.success?
         raise Pod::Exception.new("failed to pull latest #{container.image}")
       end
@@ -26,8 +24,7 @@ class Pod::Scripter
     container.apply_overrides!(
       detached: false, name: sanitise(container.name, file))
     cmd = container.to_command(args)
-    Log.info { "Running podman #{cmd.join(' ')}" }
-    Process.exec(command: "podman", args: cmd)
+    Podman.exec(args: cmd)
   end
 
   def repl(type : String, args : Array(String))
@@ -35,9 +32,7 @@ class Pod::Scripter
       raise Pod::Exception.new("no repl config for #{type}")
     end
     if container.pull_latest
-      status = Process.run(command: "podman", args: {"pull", container.image},
-        input: Process::Redirect::Close, output: Process::Redirect::Inherit,
-        error: Process::Redirect::Inherit)
+      status = Podman.run_inherit_io({"pull", container.image})
       unless status.success?
         raise Pod::Exception.new("failed to pull latest #{container.image}")
       end
@@ -45,8 +40,7 @@ class Pod::Scripter
     container.apply_overrides!(
       detached: false, name: sanitise(container.name, type))
     cmd = container.to_command(args)
-    Log.info { "Running podman #{cmd.join(' ')}" }
-    Process.exec(command: "podman", args: cmd)
+    Podman.exec(args: cmd)
   end
 
   def sanitise(type : String, name : String) : String

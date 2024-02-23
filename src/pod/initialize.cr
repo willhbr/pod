@@ -52,7 +52,7 @@ class Pod::Initializer
     loop do
       start = Time.utc
       if first
-        status = run({
+        status = Podman.run_inherit_io({
           "run", "-it", "--name", container_name,
           "--workdir", "/#{name}",
           "--entrypoint", {"sh", "-c", Runner::MAGIC_SHELL}.to_json,
@@ -62,7 +62,7 @@ class Pod::Initializer
         })
       else
         Log.info { "Restarting prev setup container..." }
-        status = run({"restart", container_name})
+        status = Podman.run_inherit_io({"restart", container_name})
       end
       first = false
       if !status.success? && (Time.utc - start) < 3.seconds
@@ -73,7 +73,7 @@ class Pod::Initializer
       end
     end
     print "Removing container used for setup: "
-    unless run({"rm", container_name}).success?
+    unless Podman.run_inherit_io({"rm", container_name}).success?
       puts "unable to remove setup container (#{container_name}) you can delete it later"
     end
     puts
@@ -166,20 +166,13 @@ class Pod::Initializer
         return nil
       end
 
-      if run({"pull", image}).success?
+      if Podman.run_inherit_io({"pull", image}).success?
         return image
       end
       puts
       puts "Unable to pull #{image}"
       puts "Make sure the image and tag is correct"
     end
-  end
-
-  def run(args : Enumerable(String)) : Process::Status
-    Log.debug { "run: podman #{Process.quote(args)}" }
-    Process.run(command: "podman", args: args,
-      input: Process::Redirect::Inherit, output: Process::Redirect::Inherit,
-      error: Process::Redirect::Inherit)
   end
 
   def confirm(message, default = "y")

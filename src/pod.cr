@@ -15,13 +15,7 @@ end
 
 def exec_podman(args, remote = nil)
   wrap_exceptions do
-    if remote
-      a = ["--remote=true", "--connection=#{remote}"]
-      a.concat(args)
-    else
-      a = args
-    end
-    Process.exec(command: "podman", args: a)
+    Pod::Podman.exec(args, remote)
   end
 end
 

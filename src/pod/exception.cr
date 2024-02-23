@@ -18,7 +18,7 @@ class Pod::Exception < Exception
 end
 
 class Pod::PodmanException < Pod::Exception
-  def initialize(message : String, @command : String, @failure : String)
+  def initialize(message : String, @command : String, @failure : String? = nil)
     super message
   end
 
@@ -29,8 +29,11 @@ class Pod::PodmanException < Pod::Exception
       else
         io << "podman command failed"
       end
-      io << "\n\n> " << @command << "\n"
-      io.puts @failure
+      io << "\n\n> " << @command
+      if f = @failure
+        io << "\n"
+        io.puts f
+      end
     end
   end
 end
