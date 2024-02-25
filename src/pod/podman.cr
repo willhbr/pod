@@ -24,6 +24,14 @@ module Pod::Podman
       error: Process::Redirect::Inherit)
   end
 
+  def self.run_inherit_all_io(args, remote : String? = nil) : Process::Status
+    args = add_remote(args, remote)
+    Log.debug { "run: podman #{Process.quote(args)}" }
+    Process.run(command: PODMAN, args: args,
+      input: Process::Redirect::Inherit, output: Process::Redirect::Inherit,
+      error: Process::Redirect::Inherit)
+  end
+
   def self.run_inherit_io!(args, remote : String? = nil)
     status = run_inherit_io(args, remote)
     unless status.success?

@@ -52,7 +52,7 @@ class Pod::Initializer
     loop do
       start = Time.utc
       if first
-        status = Podman.run_inherit_io({
+        status = Podman.run_inherit_all_io({
           "run", "-it", "--name", container_name,
           "--workdir", "/#{name}",
           "--entrypoint", {"sh", "-c", Runner::MAGIC_SHELL}.to_json,
