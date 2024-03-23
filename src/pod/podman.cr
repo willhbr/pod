@@ -16,11 +16,12 @@ module Pod::Podman
     Process.exec(command: PODMAN, args: full_args)
   end
 
-  def self.run_inherit_io(args, remote : String? = nil) : Process::Status
+  def self.run_inherit_io(args, remote : String? = nil,
+                          input : Process::Stdio? = nil) : Process::Status
     args = add_remote(args, remote)
-    Log.debug { "run: podman #{Process.quote(args)}" }
+    Log.debug { "run: podman #{Process.quote(args)} with input #{input}" }
     Process.run(command: PODMAN, args: args,
-      input: Process::Redirect::Close, output: Process::Redirect::Inherit,
+      input: input || Process::Redirect::Close, output: Process::Redirect::Inherit,
       error: Process::Redirect::Inherit)
   end
 

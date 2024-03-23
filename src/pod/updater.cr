@@ -4,7 +4,11 @@ require "diff"
 
 class String
   def truncated
-    self[...12]
+    if self.size == 64 && self.chars.all? { |c| ('0'..'9').includes?(c) || ('a'..'f').includes?(c) }
+      self[...12]
+    else
+      self
+    end
   end
 end
 

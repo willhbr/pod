@@ -1,5 +1,4 @@
 require "json"
-require "./container_inspection_utils"
 
 class Pod::Podman::Image
   include JSON::Serializable

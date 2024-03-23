@@ -68,6 +68,15 @@ module Pod::Podman
       include JSON::Serializable
       @[JSON::Field(key: "CreateCommand")]
       getter create_command : Array(String)
+
+      @[JSON::Field(key: "Secrets")]
+      getter secrets : Array(SecretConfig)
+    end
+
+    struct SecretConfig
+      include JSON::Serializable
+      @[JSON::Field(key: "Name")]
+      getter name : String
     end
 
     @[JSON::Field(key: "Config")]

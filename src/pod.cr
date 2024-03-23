@@ -183,6 +183,22 @@ class Pod::CLI < Clim
       end
     end
 
+    sub "secrets" do
+      desc "update secrets for containers"
+      usage "pod secrets <container>"
+      argument "target", type: String, desc: "container(s) to update", required: false
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
+
+      run do |opts, args|
+        wrap_exceptions do
+          config = Config.load_config!(opts.config)
+          runner = Runner.new(config, opts.remote, false, STDOUT)
+          runner.update_secrets(args.target || config.defaults.update)
+        end
+      end
+    end
+
     sub "shell" do
       alias_name "sh"
       desc "run a shell in a container"

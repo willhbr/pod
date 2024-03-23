@@ -90,7 +90,7 @@ class Pod::ContainerUpdate
       check_container_ok(self.container.id)
       return
     when Reason::DifferentImage
-      io.puts "#{name} is running different image to pulled #{@config.image}"
+      io.puts "#{name} is running different image to pulled #{@config.image.truncated}"
     when Reason::NewConfigHash
       io.puts "#{name} config has changed, updating...".colorize(:blue)
     end

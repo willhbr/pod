@@ -85,6 +85,46 @@ class Pod::Runner
     end
   end
 
+  def update_secrets(target)
+    containers = @config.get_containers(target)
+    configs = containers.map { |c| c[1] }
+    total = 0
+    failed = 0
+    configs.each do |config|
+      config.secrets.each do |name, opts|
+        total += 1
+        remote = @remote || config.remote
+        if local = opts.local
+          Log.debug { "Creating secret #{name} from #{local} from local file on #{remote}" }
+          contents = File.read(Path[local].expand(home: true))
+          status = run(args: {"secret", "create", name, "-"},
+            input: IO::Memory.new(contents), remote: remote)
+          unless status.success?
+            failed += 1
+            Log.error { "Failed to create secret: #{name}" }
+            next
+          end
+        elsif remote_path = opts.remote
+          Log.debug { "Creating secret #{name} from #{remote_path} from local file on #{remote}" }
+          status = run(args: {"secret", "create", name, remote_path}, remote: remote)
+          unless status.success?
+            failed += 1
+            Log.error { "Failed to create secret: #{name}" }
+            next
+          end
+        else
+          raise "secrets must set local: or remote: path"
+        end
+      end
+    end
+
+    if failed.zero?
+      @io.puts "Updated #{total} secrets".colorize(:green)
+    else
+      @io.puts "Updated #{total - failed} secrets, #{failed} failed.".colorize(:red)
+    end
+  end
+
   private def push_internal(name, image, exec = false)
     unless tag = image.tag
       raise Pod::Exception.new("can't push image with no tag: #{name}")
@@ -106,14 +146,16 @@ class Pod::Runner
     @io.puts "Pushed #{name} in #{t}".colorize(:blue)
   end
 
-  private def run(args : Enumerable(String), exec : Bool = false) : Process::Status
+  private def run(args : Enumerable(String),
+                  exec : Bool = false, input : IO? = nil,
+                  remote : String? = nil) : Process::Status
     if @show
       @io.puts "podman #{Process.quote(args)}"
       return Process::Status.new(0)
     elsif exec
-      Podman.exec(args: args)
+      Podman.exec(args: args, remote: remote)
     else
-      Podman.run_inherit_io(args: args)
+      Podman.run_inherit_io(args: args, input: input, remote: remote)
     end
   end
 end

@@ -49,7 +49,7 @@ module Pod::Config
     getter images = Hash(String, Config::Image).new
     getter containers = Hash(String, Config::Container).new
     getter groups = Hash(String, Set(String)).new
-    getter entrypoints = Hash(String, Entrypoint).new
+    getter entrypoints = Hash(String, Config::Entrypoint).new
 
     def get_images(target : String?) : Array({String, Config::Image})
       if target.nil?
@@ -106,7 +106,7 @@ module Pod::Config
   class Image
     include YAML::Serializable
     include YAML::Serializable::Strict
-    getter tag : String? = nil
+    getter tag : String? = nil # | Array(String) = Array(String).new
     getter from : String
     getter push : String? = nil
     getter auto_push : Bool = false
@@ -117,6 +117,11 @@ module Pod::Config
     getter build_args = KVMapping(String, YAML::Any).new
 
     getter remote : String? = nil
+
+    def tags
+      t = @tag
+      t.is_a?(String) ? [t] : t
+    end
 
     def initialize(@from, @tag)
     end
@@ -170,6 +175,7 @@ module Pod::Config
     # options that set other options
     getter interactive : Bool = false
     getter autoremove : Bool = false
+    getter secrets = Hash(String, SecretConfig).new
 
     # convenience opts
     getter pull_latest : Bool = false
@@ -189,6 +195,14 @@ module Pod::Config
       getter retries : Int32? = nil
       getter start_period : String? = nil
       getter timeout : String? = nil
+    end
+
+    class SecretConfig
+      include YAML::Serializable
+      include YAML::Serializable::Strict
+
+      getter local : String? = nil
+      getter remote : String? = nil
     end
 
     getter health : HealthConfig? = nil
@@ -288,6 +302,11 @@ module Pod::Config
           run_args["network"] = YAML::Any.new(network)
         end
       end
+
+      @secrets.each do |name, _|
+        run_args["secret"] = YAML::Any.new(name)
+      end
+
       run_args["name"] = YAML::Any.new(@name)
       run_args["hostname"] = YAML::Any.new(@name)
 
