@@ -1,4 +1,4 @@
-require "./container"
+require "podman"
 
 class Pod::ContainerUpdate
   enum Reason
@@ -109,7 +109,7 @@ class Pod::ContainerUpdate
       io.puts "started new container: #{new_id.truncated}".colorize(:green)
       check_container_ok(new_id)
       remove_container
-    rescue ex : Pod::Exception
+    rescue ex : Podman::Exception
       unless old_name.nil?
         io.puts "failed to update #{@config.name}".colorize(:red)
         io.puts "restarting old container #{self.container.id.truncated}"
@@ -134,9 +134,9 @@ class Pod::ContainerUpdate
         timeout = Time::Span.from_string(t) rescue 5.seconds
       end
     end
-    if exit_code = Podman.wait_until_in_state(id, @remote, %w(stopped exited), timeout)
-      logs = Podman.get_container_logs(id, tail: 15, remote: @remote)
-      raise Pod::Exception.new(
+    if exit_code = PodmanCLI.wait_until_in_state(id, @remote, %w(stopped exited), timeout)
+      logs = PodmanCLI.get_container_logs(id, tail: 15, remote: @remote)
+      raise Podman::Exception.new(
         "#{@config.name} exited fast with status #{exit_code}",
         container_logs: logs)
     end
@@ -185,7 +185,7 @@ class Pod::ContainerUpdate
 
   private def rename_container
     name = "#{@config.name}_old_#{self.container.id.truncated}"
-    Podman.run_inherit_io!({"rename", self.container.id, name}, remote: @remote)
+    PodmanCLI.run_inherit_io!({"rename", self.container.id, name}, remote: @remote)
     name
   end
 
@@ -194,7 +194,7 @@ class Pod::ContainerUpdate
   end
 
   private def restart_old_container
-    Podman.run_inherit_io!({"rename", self.container.id, self.container.name}, remote: @remote)
-    Podman.run_inherit_io!({"start", self.container.id}, remote: @remote)
+    PodmanCLI.run_inherit_io!({"rename", self.container.id, self.container.name}, remote: @remote)
+    PodmanCLI.run_inherit_io!({"start", self.container.id}, remote: @remote)
   end
 end

@@ -11,7 +11,7 @@ class Pod::Runner
       t = Time.measure do
         status = run(args)
         unless status.success?
-          raise Pod::Exception.new("failed to build #{name}")
+          raise Podman::Exception.new("failed to build #{name}")
         end
       end
       @io.puts "Built #{name} in #{t}".colorize(:blue)
@@ -33,13 +33,13 @@ class Pod::Runner
         # TODO this doesn't work with remote
         status = run({"pull", container.image})
         unless status.success?
-          raise Pod::Exception.new("failed to pull latest #{container.image}")
+          raise Podman::Exception.new("failed to pull latest #{container.image}")
         end
       end
       args = container.to_command(extra_args)
       status = run(args, exec: !multiple)
       unless status.success?
-        raise Pod::Exception.new("failed to run #{name}")
+        raise Podman::Exception.new("failed to run #{name}")
       end
     end
   end
@@ -52,7 +52,7 @@ class Pod::Runner
             image: name
           )
         else
-          raise Pod::Exception.new("entrypoint not found: #{target}. Entrypoints are #{@config.entrypoints.keys.join(", ")}.")
+          raise Podman::Exception.new("entrypoint not found: #{target}. Entrypoints are #{@config.entrypoints.keys.join(", ")}.")
         end
       end
     else
@@ -67,10 +67,10 @@ class Pod::Runner
             image: name
           )
         else
-          raise Pod::Exception.new("no entrypoint specified")
+          raise Podman::Exception.new("no entrypoint specified")
         end
       else
-        raise Pod::Exception.new("no entrypoint specified")
+        raise Podman::Exception.new("no entrypoint specified")
       end
     end
     args = entrypoint.to_command(extra_args)
@@ -127,10 +127,10 @@ class Pod::Runner
 
   private def push_internal(name, image, exec = false)
     unless tag = image.tag
-      raise Pod::Exception.new("can't push image with no tag: #{name}")
+      raise Podman::Exception.new("can't push image with no tag: #{name}")
     end
     unless push = image.push
-      raise Pod::Exception.new("can't push image with no push destination: #{name}")
+      raise Podman::Exception.new("can't push image with no push destination: #{name}")
     end
     if remote = @remote || image.remote
       args = {"--remote=true", "--connection=#{remote}", "push", tag, push}
@@ -140,7 +140,7 @@ class Pod::Runner
     start = Time.utc
     status = run(args: args, exec: exec)
     unless status.success?
-      raise Pod::Exception.new("failed to push #{name}")
+      raise Podman::Exception.new("failed to push #{name}")
     end
     t = Time.utc - start
     @io.puts "Pushed #{name} in #{t}".colorize(:blue)
@@ -153,9 +153,9 @@ class Pod::Runner
       @io.puts "podman #{Process.quote(args)}"
       return Process::Status.new(0)
     elsif exec
-      Podman.exec(args: args, remote: remote)
+      PodmanCLI.exec(args: args, remote: remote)
     else
-      Podman.run_inherit_io(args: args, input: input, remote: remote)
+      PodmanCLI.run_inherit_io(args: args, input: input, remote: remote)
     end
   end
 end

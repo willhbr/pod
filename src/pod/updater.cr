@@ -1,5 +1,4 @@
 require "./config"
-require "./container"
 require "diff"
 
 class String
@@ -31,10 +30,10 @@ class Pod::Updater
     images = Pod::Images.get_by_name(remote, image)
 
     if images.empty?
-      raise Pod::Exception.new "image not found: #{image}"
+      raise Podman::Exception.new "image not found: #{image}"
     end
     if images.size != 1
-      raise Pod::Exception.new "multiple images match: #{image} (#{images.join(", ")})"
+      raise Podman::Exception.new "multiple images match: #{image} (#{images.join(", ")})"
     end
     Log.info { "Image #{image} id: #{images[0].id}" }
     return images[0]
@@ -84,7 +83,7 @@ class Pod::Updater
       begin
         info.update(@io)
         action_count += 1 if info.actionable?
-      rescue ex : Pod::Exception
+      rescue ex : Podman::Exception
         failures += 1
         ex.print_message @io
       end
@@ -106,9 +105,10 @@ class Pod::Updater
     changes = Array(ContainerUpdate).new
     configs_per_host.each do |host, configs|
       if Set(String).new(configs.map(&.name)).size != configs.size
-        raise Pod::Exception.new("container names must be unique for update to work")
+        raise Podman::Exception.new("container names must be unique for update to work")
       end
-      existing_containers = Podman.get_containers(configs.map(&.name), host).to_h { |c| {c.name, c} }
+      existing_containers = Podman.get_containers(
+        configs.map(&.name), remote: host).to_h_by(&.name)
       Geode::Spindle.run do |spindle|
         configs.each do |config|
           # Not threadsafe at all but whatever
@@ -131,7 +131,7 @@ class Pod::Updater
     end
     updates_per_host.each do |host, updates|
       ids = updates.reject { |u| u.container?.nil? }.map { |u| u.container.id }
-      inspections = Podman.inspect_containers(ids, host).to_h { |i| {i.id, i} }
+      inspections = Podman.inspect_containers(ids, remote: host).to_h_by(&.id)
       updates.each do |info|
         if id = info.container?.try &.id
           inspection = inspections.delete(id)

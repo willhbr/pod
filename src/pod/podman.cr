@@ -1,4 +1,4 @@
-module Pod::Podman
+module Pod::PodmanCLI
   PODMAN = "podman"
 
   private def self.add_remote(args, remote)
@@ -36,46 +36,8 @@ module Pod::Podman
   def self.run_inherit_io!(args, remote : String? = nil)
     status = run_inherit_io(args, remote)
     unless status.success?
-      raise Pod::PodmanException.new("podman command failed: #{status.exit_code}", "podman #{Process.quote(args)}")
+      raise Podman::PodmanException.new("podman command failed: #{status.exit_code}", "podman #{Process.quote(args)}")
     end
-  end
-
-  def self.run_capture_all(args, remote)
-    start = Time.utc
-    args = add_remote(args, remote)
-    Log.debug { "Running: podman #{Process.quote(args)}" }
-    process = Process.new(PODMAN, args: args,
-      input: Process::Redirect::Close,
-      output: Process::Redirect::Pipe, error: Process::Redirect::Pipe)
-    output = process.output.gets_to_end.chomp
-    error = process.error.gets_to_end.chomp
-    status = process.wait
-    Log.debug { "Run in #{Time.utc - start}" }
-    {status, output, error}
-  end
-
-  def self.run_capture_stdout(args, remote : String?)
-    status, output, error = run_capture_all(args, remote)
-    unless status.success?
-      raise Pod::PodmanException.new("podman command failed: #{status.exit_code}", "podman #{Process.quote(args)}", error)
-    end
-    output
-  end
-
-  def self.get_containers(names : Array(String), remote : String?) : Array(Podman::Container)
-    Array(Podman::Container).from_json(Podman.run_capture_stdout(
-      %w(container ls -a --format json) + ["--filter=name=#{names.join('|')}"], remote: remote))
-  end
-
-  def self.get_container_by_id(id : String, remote : String?) : Array(Podman::Container)
-    Array(Podman::Container).from_json(Podman.run_capture_stdout(
-      %w(container ls -a --format json) + ["--filter=id=#{id}"], remote: remote))
-  end
-
-  def self.inspect_containers(ids : Enumerable(String), remote : String?) : Array(Podman::Container::Inspect)
-    return [] of Podman::Container::Inspect if ids.empty?
-    Array(Podman::Container::Inspect).from_json(
-      Podman.run_capture_stdout(%w(container inspect) + ids, remote: remote))
   end
 
   def self.get_container_logs(id, tail, remote)

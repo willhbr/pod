@@ -52,7 +52,7 @@ class Pod::Initializer
     loop do
       start = Time.utc
       if first
-        status = Podman.run_inherit_all_io({
+        status = PodmanCLI.run_inherit_all_io({
           "run", "-it", "--name", container_name,
           "--workdir", "/#{name}",
           "--entrypoint", {"sh", "-c", Runner::MAGIC_SHELL}.to_json,
@@ -62,7 +62,7 @@ class Pod::Initializer
         })
       else
         Log.info { "Restarting prev setup container..." }
-        status = Podman.run_inherit_io({"restart", container_name})
+        status = PodmanCLI.run_inherit_io({"restart", container_name})
       end
       first = false
       if !status.success? && (Time.utc - start) < 3.seconds
@@ -73,7 +73,7 @@ class Pod::Initializer
       end
     end
     print "Removing container used for setup: "
-    unless Podman.run_inherit_io({"rm", container_name}).success?
+    unless PodmanCLI.run_inherit_io({"rm", container_name}).success?
       puts "unable to remove setup container (#{container_name}) you can delete it later"
     end
     puts
@@ -166,7 +166,7 @@ class Pod::Initializer
         return nil
       end
 
-      if Podman.run_inherit_io({"pull", image}).success?
+      if PodmanCLI.run_inherit_io({"pull", image}).success?
         return image
       end
       puts
@@ -203,7 +203,7 @@ class Pod::Initializer
     end
     print p
     unless input = gets
-      raise Pod::Exception.new "expected input"
+      raise Podman::Exception.new "expected input"
     end
     if input.blank?
       default

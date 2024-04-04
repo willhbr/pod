@@ -1,5 +1,6 @@
 FROM docker.io/crystallang/crystal:latest
 WORKDIR /src
 COPY shard.yml .
+COPY --from=podman-cr . /shards/podman-cr
 RUN shards install
-ENTRYPOINT shards build --error-trace --release --progress
+ENTRYPOINT shards build --error-trace --progress

@@ -15,14 +15,14 @@ end
 
 def exec_podman(args, remote = nil)
   wrap_exceptions do
-    Pod::Podman.exec(args, remote)
+    Pod::PodmanCLI.exec(args, remote)
   end
 end
 
 def wrap_exceptions
   begin
     yield
-  rescue ex : Pod::Exception
+  rescue ex : Podman::Exception
     ex.print_message STDERR
     Log.notice(exception: ex) { "Pod failed" }
     exit 1

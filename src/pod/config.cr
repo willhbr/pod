@@ -26,10 +26,10 @@ module Pod::Config
       end
     rescue ex : YAML::ParseException
       STDERR.puts ex.message
-      raise Pod::Exception.new("Failed to parse config file #{file}", cause: ex)
+      raise Podman::Exception.new("Failed to parse config file #{file}", cause: ex)
     end
 
-    raise Pod::Exception.new("Config file #{file || DEFAULT_CONFIG_FILE} does not exist")
+    raise Podman::Exception.new("Config file #{file || DEFAULT_CONFIG_FILE} does not exist")
   end
 
   def self.as_args(args : KVMapping(String, YAML::Any)) : Array(String)
@@ -64,7 +64,7 @@ module Pod::Config
       if group = @groups[target]?
         return group.map { |c| {c, @images[c]} }
       end
-      raise Pod::Exception.new("no image or group matches #{target}")
+      raise Podman::Exception.new("no image or group matches #{target}")
     end
 
     def get_containers(target : String?) : Array({String, Config::Container})
@@ -80,7 +80,7 @@ module Pod::Config
       if group = @groups[target]?
         return group.map { |c| {c, @containers[c]} }
       end
-      raise Pod::Exception.new("no container or group matches #{target}")
+      raise Podman::Exception.new("no container or group matches #{target}")
     end
 
     def initialize(@defaults)
