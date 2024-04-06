@@ -4,17 +4,34 @@ require "yaml"
 require "./kv_mapping"
 
 module Pod::Config
+  CONFIG_FILES = {
+    "pods.yaml",
+    "pods.yml",
+    "pods.json",
+  }
+
   def self.load_config(file) : Config::File?
     paths = Path[Dir.current].parents
     paths << Path[Dir.current]
+    files = file.nil? ? CONFIG_FILES : {file}
     paths.reverse.each do |path|
-      target = path / (file || DEFAULT_CONFIG_FILE)
-      Dir.cd target.parent
-      if ::File.exists? target
-        Log.info { "Loading config from #{target}" }
-        config = Config::File.from_yaml(::File.read(target))
-        Log.info { config.pretty_inspect }
-        return config
+      files.each do |file|
+        target = path / file
+        Dir.cd target.parent
+        if ::File.exists? target
+          Log.info { "Loading config from #{target}" }
+          case target.extension.downcase
+          when "yaml", "yml"
+            config = Config::File.from_yaml(::File.read(target))
+          when "json"
+            config = Config::File.from_json(::File.read(target))
+          else
+            Log.warn { "Unsure of file type for #{target}, defaulting to YAML" }
+            config = Config::File.from_yaml(::File.read(target))
+          end
+          Log.info { config.pretty_inspect }
+          return config
+        end
       end
     end
   end
@@ -24,12 +41,12 @@ module Pod::Config
       if conf = load_config(file)
         return conf
       end
-    rescue ex : YAML::ParseException
+    rescue ex : YAML::ParseException | JSON::ParseException
       STDERR.puts ex.message
       raise Podman::Exception.new("Failed to parse config file #{file}", cause: ex)
     end
 
-    raise Podman::Exception.new("Config file #{file || DEFAULT_CONFIG_FILE} does not exist")
+    raise Podman::Exception.new("Config file #{file || CONFIG_FILES.join(", ")} does not exist")
   end
 
   def self.as_args(args : KVMapping(String, YAML::Any)) : Array(String)
@@ -42,8 +59,15 @@ module Pod::Config
     end
   end
 
+  module MultiSerializable
+    macro included
+      include YAML::Serializable
+      include JSON::Serializable
+    end
+  end
+
   class File
-    include YAML::Serializable
+    include MultiSerializable
 
     getter defaults = Defaults.new
     getter images = Hash(String, Config::Image).new
@@ -92,7 +116,7 @@ module Pod::Config
   end
 
   class Defaults
-    include YAML::Serializable
+    include MultiSerializable
     include YAML::Serializable::Strict
     getter build : String? = nil
     getter run : String? = nil
@@ -104,7 +128,7 @@ module Pod::Config
   end
 
   class Image
-    include YAML::Serializable
+    include MultiSerializable
     include YAML::Serializable::Strict
     getter tag : String? = nil # | Array(String) = Array(String).new
     getter from : String
@@ -155,8 +179,7 @@ module Pod::Config
   end
 
   class Container
-    include JSON::Serializable
-    include YAML::Serializable
+    include MultiSerializable
     include YAML::Serializable::Strict
     getter name : String
     getter image : String
@@ -186,8 +209,7 @@ module Pod::Config
 
     # helth
     class HealthConfig
-      include JSON::Serializable
-      include YAML::Serializable
+      include MultiSerializable
       include YAML::Serializable::Strict
       getter command : YAML::Any
       getter interval : String? = nil
@@ -198,7 +220,7 @@ module Pod::Config
     end
 
     class SecretConfig
-      include YAML::Serializable
+      include MultiSerializable
       include YAML::Serializable::Strict
 
       getter local : String? = nil
@@ -349,7 +371,7 @@ module Pod::Config
 
   # For running a throw-away shell in within an image
   class Entrypoint
-    include YAML::Serializable
+    include MultiSerializable
 
     # for podman
     getter podman_flags = KVMapping(String, YAML::Any).new

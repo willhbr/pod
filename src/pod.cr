@@ -5,8 +5,7 @@ require "geode"
 require "ecr"
 
 module Pod
-  DEFAULT_CONFIG_FILE = "pods.yaml"
-  VERSION             = "0.1.0"
+  VERSION = "0.1.0"
 
   def self.build_info
     Geode::ProgramInfo::BUILT_AT
@@ -63,7 +62,7 @@ class Pod::CLI < Clim
       alias_name "b"
       desc "build an image"
       usage "pod build [options]"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
       option "-s", "--show", type: Bool, desc: "Show command only", default: false
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       argument "target", type: String, desc: "target to build", required: false
@@ -81,7 +80,7 @@ class Pod::CLI < Clim
       alias_name "r"
       desc "run a container"
       usage "pod run [options]"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
       option "-s", "--show", type: Bool, desc: "Show command only", default: false
       option "-d", "--detach", type: Bool, desc: "Run container detached", default: false
       option "-i", "--interactive", type: Bool, desc: "Run container interactive", default: false
@@ -114,7 +113,7 @@ class Pod::CLI < Clim
       alias_name "p"
       desc "push an image to a registry"
       usage "pod push [options]"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
       option "-s", "--show", type: Bool, desc: "Show command only", default: false
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       argument "target", type: String, desc: "target to push", required: false
@@ -131,7 +130,7 @@ class Pod::CLI < Clim
       alias_name "u"
       desc "update a running container"
       usage "pod update [options]"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       option "-d", "--diff", type: Bool, desc: "Show a diff", default: false
       option "-b", "--bounce", type: Bool, desc: "Force restart all containers", default: false
@@ -166,7 +165,7 @@ class Pod::CLI < Clim
       alias_name "d"
       desc "preview updates to running containers"
       usage "pod diff [options]"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       option "-b", "--bounce", type: Bool, desc: "Force restart all containers", default: false
       argument "target", type: String, desc: "target to run", required: false
@@ -187,7 +186,7 @@ class Pod::CLI < Clim
       desc "update secrets for containers"
       usage "pod secrets <container>"
       argument "target", type: String, desc: "container(s) to update", required: false
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
 
       run do |opts, args|
@@ -228,7 +227,7 @@ class Pod::CLI < Clim
       desc "run a shell from an entrypoint"
       usage "pod enter <entrypoint>"
       argument "entrypoint", type: String, desc: "entrypoint to run", required: false
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
       option "-s", "--show", type: Bool, desc: "Show command only", default: false
       run do |opts, args|
@@ -274,7 +273,7 @@ class Pod::CLI < Clim
     sub "targets" do
       desc "targets as defined in config file, for shell completion"
       usage "pod init"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", default: DEFAULT_CONFIG_FILE
+      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
 
       run do |opts, args|
         wrap_exceptions do
