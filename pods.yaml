@@ -11,6 +11,8 @@ images:
   install:
     tag: pod:prod-latest
     from: Containerfile.prod
+    build_flags:
+      build-context: podman-cr=../podman-cr
 
 containers:
   dev:

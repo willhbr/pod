@@ -10,7 +10,8 @@ if [ -z "$output" ]; then
 fi
 
 echo 'Building pod image...'
-podman build --tag=pod:installer --file=Containerfile.prod .
+podman build --build-context=podman-cr=../podman-cr \
+  --tag=pod:installer --file=Containerfile.prod .
 
 echo "Copying file to $1"
 podman run --tty=true --interactive=true --rm=true \

@@ -1,5 +1,6 @@
 FROM docker.io/crystallang/crystal:latest
 WORKDIR /src
+COPY --from=podman-cr . /shards/podman-cr
 COPY shard.yml .
 RUN shards install
 COPY . .
