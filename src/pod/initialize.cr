@@ -161,9 +161,22 @@ class Pod::Initializer
 
   def get_image
     loop do
+      images = Podman.get_images(
+        remote: nil,
+        filter: "dangling=false"
+      ).sort_by(&.name)
+      unless images.empty?
+        puts "Local images:"
+        puts images[0..10].map_with_index { |im, idx| " [#{idx + 1}] #{im}" }.join("\n")
+        puts
+      end
       unless image = prompt("Base image for development")
         puts "not adding image, you can do that later"
         return nil
+      end
+
+      if (idx = image.to_i?) && (im = images[idx - 1]?)
+        return im.name
       end
 
       if PodmanCLI.run_inherit_io({"pull", image}).success?

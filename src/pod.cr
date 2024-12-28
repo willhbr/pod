@@ -259,7 +259,7 @@ class Pod::CLI < Clim
     end
 
     sub "init" do
-      alias_name "i"
+      alias_name "i", "initialise", "initialize"
       desc "setup a pod project"
       usage "pod init"
 
