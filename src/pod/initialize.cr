@@ -7,13 +7,11 @@ class Pod::Initializer
     "Sources",
     "lib",
   }
-  TITLE = "
-                _
+  TITLE = "                _
   _ __  ___  __| |
  | '_ \\/ _ \\/ _` |
  | .__/\\___/\\__,_|
  |_|
-
 "
 
   def self.run
@@ -164,11 +162,13 @@ class Pod::Initializer
       images = Podman.get_images(
         remote: nil,
         filter: "dangling=false"
-      ).sort_by(&.name)
+      ).sort_by { |i| {i.name.starts_with?("localhost") ? 1 : 0, i.name} }
       unless images.empty?
         puts "Local images:"
-        puts images[0..10].map_with_index { |im, idx| " [#{idx + 1}] #{im}" }.join("\n")
-        puts
+        puts images[0...20].map_with_index { |im, idx|
+          " [#{idx + 1}] #{im.name}"
+        }.join("\n")
+        puts "Select existing image or enter name."
       end
       unless image = prompt("Base image for development")
         puts "not adding image, you can do that later"
