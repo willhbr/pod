@@ -189,7 +189,7 @@ module Pod::Config
     getter run_flags = KVMapping(String, YAML::Any).new
     # for the container
     getter flags = KVMapping(String, YAML::Any).new
-    getter args = Array(String).new
+    getter args = Array(YAML::Any).new
 
     getter environment = Hash(String, String).new
     getter labels = Hash(String, YAML::Any).new
@@ -352,7 +352,13 @@ module Pod::Config
         args.concat ca
       else
         args.concat Config.as_args(@flags)
-        args.concat @args
+        args.concat @args.map { |a|
+          if a.raw.is_a?(Hash) || a.raw.is_a?(Set) || a.raw.is_a?(Array)
+            a.to_json
+          else
+            a.to_s
+          end
+        }
       end
       args
     end
