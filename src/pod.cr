@@ -200,7 +200,7 @@ class Pod::CLI < Clim
 
     sub "shell" do
       alias_name "sh"
-      desc "run a shell in a container"
+      desc "attach a shell to a container"
       usage "pod shell <container>"
       argument "target", type: String, desc: "target to run in", required: true
       option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
@@ -280,8 +280,7 @@ class Pod::CLI < Clim
           config = Config.load_config!(opts.config)
           puts Set(String).new(
             config.images.keys +
-            config.containers.keys +
-            config.entrypoints.keys
+            config.containers.keys
           ).join('\n')
         end
       end

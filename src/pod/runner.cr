@@ -45,36 +45,22 @@ class Pod::Runner
   end
 
   def enter(target : String?, extra_args : Enumerable(String)?)
-    if target
-      unless entrypoint = @config.entrypoints[target]?
-        if (image = @config.images[target]?) && (name = image.tag)
-          entrypoint = Config::Entrypoint.new(
-            image: name
-          )
-        else
-          raise Podman::Exception.new("entrypoint not found: #{target}. Entrypoints are #{@config.entrypoints.keys.join(", ")}.")
-        end
-      end
-    else
-      if default = @config.defaults.entrypoint
-        entrypoint = @config.entrypoints[default]
-      elsif @config.entrypoints.size == 1
-        entrypoint = @config.entrypoints.values.first
-      elsif @config.images.size == 1
-        image = @config.images.values.first
-        if name = image.tag
-          entrypoint = Config::Entrypoint.new(
-            image: name
-          )
-        else
-          raise Podman::Exception.new("no entrypoint specified")
-        end
-      else
-        raise Podman::Exception.new("no entrypoint specified")
-      end
+    containers = @config.get_containers(target)
+    if containers.empty?
+      raise Podman::Exception.new("no entrypoint: #{target}")
     end
-    args = entrypoint.to_command(extra_args)
-    status = run(args, exec: true)
+    if containers.size > 1
+      raise Podman::Exception.new("multiple containers matched #{target}: #{containers.map { |c| c[1].name }.join(", ")}")
+    end
+    _, container = containers[0]
+    container.apply_overrides!(
+      detached: false,
+      name: "#{container.name}-shell",
+      autoremove: true,
+      entrypoint: YAML::Any.new(["sh", "-c", Runner::MAGIC_SHELL].map { |c| YAML::Any.new(c) })
+    )
+    args = container.to_command(extra_args)
+    run(args, exec: true)
   end
 
   def push(target : String?)

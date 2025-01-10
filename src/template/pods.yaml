@@ -1,3 +1,8 @@
+defaults:
+  run: dev
+  entrypoint: dev
+  update: prod
+
 images:
   prod:
     tag: <%= project %>:prod-latest
@@ -8,7 +13,7 @@ images:
     # auto_push: false
 
 development:
-  default:
+  dev:
     image: <%= image %>
     entrypoint: ['make', 'run']
 
@@ -19,9 +24,3 @@ containers:
     # Pull the latest image from the registry before running it
     interactive: false
     autoremove: true
-
-# use `pod enter shell` to start a session inside a dev container.
-# useful for running code generators, etc.
-entrypoints:
-  shell:
-    image: <%= project %>:dev-latest

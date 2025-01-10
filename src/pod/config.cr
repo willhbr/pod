@@ -74,7 +74,6 @@ module Pod::Config
     getter containers = Hash(String, Config::Container).new
     getter development = Hash(String, Config::DevContainer).new
     getter groups = Hash(String, Set(String)).new
-    getter entrypoints = Hash(String, Config::Entrypoint).new
 
     def get_images(target : String?) : Array({String, Config::Image})
       if target.nil?
@@ -94,6 +93,10 @@ module Pod::Config
 
     def get_containers(target : String?) : Array({String, Config::Container})
       if target.nil?
+        if @development.size == 1
+          k, v = @development.first
+          return [{k, v.as(Container)}]
+        end
         target = @defaults.run || ":all"
       end
       if c = find_container(target)
@@ -254,7 +257,8 @@ module Pod::Config
     def apply_overrides!(
       detached : Bool? = nil, remote : String? = nil,
       image : String? = nil, name : String? = nil,
-      autoremove : Bool? = nil
+      autoremove : Bool? = nil,
+      entrypoint : YAML::Any? = nil
     )
       unless detached.nil?
         @interactive = !detached
@@ -270,6 +274,9 @@ module Pod::Config
       end
       unless autoremove.nil?
         @autoremove = autoremove
+      end
+      if entrypoint
+        @entrypoint = entrypoint
       end
     end
 
@@ -405,59 +412,6 @@ module Pod::Config
 
     def self.auto_name
       ::File.basename Dir.current
-    end
-  end
-
-  # For running a throw-away shell in within an image
-  class Entrypoint
-    include MultiSerializable
-
-    # for podman
-    getter podman_flags = KVMapping(String, YAML::Any).new
-    getter run_flags = KVMapping(String, YAML::Any).new
-
-    getter remote : String? = nil
-    getter image : String
-    getter shell : Array(String) | String = Runner::MAGIC_SHELL
-
-    def initialize(@image)
-    end
-
-    def to_command(
-      cmd_args : Enumerable(String)?
-    )
-      args = Array(String).new
-      podman_args = @podman_flags.dup
-      if remote = @remote
-        podman_args.replace "remote", YAML::Any.new(true)
-        podman_args.replace "connection", YAML::Any.new(remote)
-      end
-      args.concat Config.as_args(podman_args)
-
-      args << "run"
-      run_args = @run_flags.dup
-      run_args["tty"] = YAML::Any.new(true)
-      run_args["interactive"] = YAML::Any.new(true)
-      run_args["rm"] = YAML::Any.new(true)
-
-      run_args["workdir"] = YAML::Any.new("/src")
-      run_args["mount"] = YAML::Any.new("type=bind,src=.,dst=/src")
-
-      shell = @shell
-      if shell.is_a? String
-        run_args["entrypoint"] = YAML::Any.new({"sh", "-c", shell}.to_json)
-      else
-        run_args["entrypoint"] = YAML::Any.new(shell.to_json)
-      end
-
-      args.concat Config.as_args(run_args)
-
-      args << @image
-
-      if ca = cmd_args
-        args.concat ca
-      end
-      args
     end
   end
 end
