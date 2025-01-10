@@ -14,9 +14,9 @@ shards:
 
   geode:
     git: https://github.com/willhbr/geode.git
-    version: 0.1.0+git.commit.ca5d3362f0af0d10e0ff2e8dce3653aa90a74307
+    version: 0.1.0+git.commit.5566f9d245df49e4abba7c30d622e4f87d715b3c
 
   podman:
-    path: /shards/podman-cr
-    version: 0.1.0
+    git: https://github.com/willhbr/podman-cr.git
+    version: 0.1.0+git.commit.0854485e91d420b553c44dbeaa0056b59e220f5e
 

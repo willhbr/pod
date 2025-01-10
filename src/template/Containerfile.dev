@@ -1,9 +1,0 @@
-FROM <%= image %>
-WORKDIR /src
-<% if ps = project_specific_setup(true, project) %>
-<%= ps %>
-<% else %>
-# Do the actual compilation and running in the entrypoint allows us to
-# mount the source and avoid rebuilding when developing
-ENTRYPOINT ["echo", "this should be a command to run your code"]
-<% end %>

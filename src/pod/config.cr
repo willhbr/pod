@@ -72,6 +72,7 @@ module Pod::Config
     getter defaults = Defaults.new
     getter images = Hash(String, Config::Image).new
     getter containers = Hash(String, Config::Container).new
+    getter development = Hash(String, Config::DevContainer).new
     getter groups = Hash(String, Set(String)).new
     getter entrypoints = Hash(String, Config::Entrypoint).new
 
@@ -95,16 +96,30 @@ module Pod::Config
       if target.nil?
         target = @defaults.run || ":all"
       end
-      if c = @containers[target]?
+      if c = find_container(target)
         return [{target, c}]
       end
       if target == ":all"
-        return @containers.to_a
+        return @containers.to_a + @development.to_a
       end
       if group = @groups[target]?
-        return group.map { |c| {c, @containers[c]} }
+        return group.map { |c| {c, find_container!(c)} }
       end
       raise Podman::Exception.new("no container or group matches #{target}")
+    end
+
+    private def find_container(target : String) : Config::Container?
+      if c = @containers[target]?
+        return c
+      end
+      if c = @development[target]?
+        return c.as(Container)
+      end
+      nil
+    end
+
+    private def find_container!(target : String) : Config::Container
+      find_container(target) || raise Podman::Exception.new("no container matches #{target}")
     end
 
     def initialize(@defaults)
@@ -206,6 +221,7 @@ module Pod::Config
     getter bind_mounts = Hash(String, String).new
     getter volumes = Hash(String, String).new
     getter ports = Hash(Int32, String).new
+    getter entrypoint : YAML::Any? = nil
 
     # helth
     class HealthConfig
@@ -312,6 +328,10 @@ module Pod::Config
         run_args["publish"] = YAML::Any.new("#{host.zero? ? "" : host}:#{cont}")
       end
 
+      if entrypoint = @entrypoint
+        run_args["entrypoint"] = entrypoint
+      end
+
       @environment.each do |name, value|
         run_args["env"] = YAML::Any.new("#{name}=#{value}")
       end
@@ -372,6 +392,18 @@ module Pod::Config
         dig.update(arg)
       end
       dig.hexfinal
+    end
+  end
+
+  class DevContainer < Container
+    @name = DevContainer.auto_name
+    @interactive = true
+    @autoremove = true
+    @bind_mounts = {"." => "/src"}
+    @run_flags = KVMapping(String, YAML::Any){"workdir" => YAML::Any.new("/src")}
+
+    def self.auto_name
+      ::File.basename Dir.current
     end
   end
 

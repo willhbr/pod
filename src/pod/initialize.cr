@@ -40,7 +40,6 @@ class Pod::Initializer
 
   def write_config_files(project, image, source_dir)
     File.write "pods.yaml", ECR.render "src/template/pods.yaml"
-    File.write "Containerfile.dev", ECR.render "src/template/Containerfile.dev"
     File.write "Containerfile.prod", ECR.render "src/template/Containerfile.prod"
   end
 

@@ -1,7 +1,4 @@
 images:
-  dev:
-    tag: <%= project %>:dev-latest
-    from: Containerfile.dev
   prod:
     tag: <%= project %>:prod-latest
     from: Containerfile.prod
@@ -10,22 +7,12 @@ images:
     # Set this to true to push after each build
     # auto_push: false
 
-containers:
-  dev:
-    name: <%= project %>-dev
-    image: <%= project %>:dev-latest
-    interactive: true
-    autoremove: true
-    bind_mounts:
-      # binding the source directory lets us re-run changes without rebuilding
-      <%= source_dir %>: /src/<%= source_dir %>
-    # flags:
-    #   # this will be passed as --flag=value
-    #   flag: value
-    # args:
-    #   # This will be passed after the flags
-    #   - positional
+development:
+  default:
+    image: <%= image %>
+    entrypoint: ['make', 'run']
 
+containers:
   prod:
     name: <%= project %>-prod
     image: localhost/<%= project %>:prod-latest

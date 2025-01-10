@@ -17,8 +17,7 @@ dependencies:
     github: at-grandpa/clim
   geode:
     github: willhbr/geode
-    branch: main
   diff:
     github: watzon/diff
   podman:
-    path: /shards/podman-cr
+    github: willhbr/podman-cr

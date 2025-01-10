@@ -1,6 +1,6 @@
 defaults:
   build: dev
-  run: dev
+  run: default
 
 images:
   dev:
@@ -14,16 +14,12 @@ images:
     build_flags:
       build-context: podman-cr=../podman-cr
 
-containers:
-  dev:
-    name: pod-install
+development:
+  default:
     image: localhost/pod:dev-latest
-    interactive: true
-    autoremove: true
-    bind_mounts:
-      .: /src
-      .cache: /root/.cache
+    entrypoint: ['shards', 'build']
 
+containers:
   install:
     name: pod-install
     image: localhost/pod:prod-latest
