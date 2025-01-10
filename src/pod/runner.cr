@@ -16,7 +16,7 @@ class Pod::Runner
       end
       @io.puts "Built #{name} in #{t}".colorize(:blue)
       if image.auto_push
-        push_internal(name, image, false)
+        push_or_scp(name, image, false)
       end
     end
   end
@@ -81,7 +81,7 @@ class Pod::Runner
     images = @config.get_images(target)
     multiple = images.size > 1
     images.each do |name, image|
-      push_internal(name, image, !multiple)
+      push_or_scp(name, image, !multiple)
     end
   end
 
@@ -125,6 +125,15 @@ class Pod::Runner
     end
   end
 
+  private def push_or_scp(name, image, exec = false)
+    if image.scp
+      scp_internal(name, image)
+    end
+    if image.push
+      push_internal(name, image, exec: exec)
+    end
+  end
+
   private def push_internal(name, image, exec = false)
     unless tag = image.tag
       raise Podman::Exception.new("can't push image with no tag: #{name}")
@@ -138,12 +147,36 @@ class Pod::Runner
       args = {"push", tag, push}
     end
     start = Time.utc
+    @io.puts "Uploading #{name} to #{push}...".colorize(:blue)
     status = run(args: args, exec: exec)
     unless status.success?
       raise Podman::Exception.new("failed to push #{name}")
     end
     t = Time.utc - start
-    @io.puts "Pushed #{name} in #{t}".colorize(:blue)
+    @io.puts "Pushed #{name} to #{push} in #{t}".colorize(:blue)
+  end
+
+  private def scp_internal(name, image)
+    unless tag = image.tag
+      raise Podman::Exception.new("can't push image with no tag: #{name}")
+    end
+    unless scp_remote = image.scp
+      raise Podman::Exception.new("can't push image with no scp destination: #{name}")
+    end
+    if remote = @remote || image.remote
+      args = {"--remote=true", "--connection=#{remote}",
+              "image", "scp", tag, scp_remote + "::"}
+    else
+      args = {"image", "scp", tag, scp_remote + "::"}
+    end
+    start = Time.utc
+    @io.puts "Uploading #{name} to #{scp_remote}...".colorize(:blue)
+    status = run(args: args)
+    unless status.success?
+      raise Podman::Exception.new("failed to push #{name}")
+    end
+    t = Time.utc - start
+    @io.puts "Uploaded #{name} to #{scp_remote} in #{t}".colorize(:blue)
   end
 
   private def run(args : Enumerable(String),

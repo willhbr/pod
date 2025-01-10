@@ -148,6 +148,7 @@ module Pod::Config
     getter tag : String? = nil # | Array(String) = Array(String).new
     getter from : String
     getter push : String? = nil
+    getter scp : String? = nil
     getter auto_push : Bool = false
     getter context : String = "."
     getter podman_flags = KVMapping(String, YAML::Any).new
