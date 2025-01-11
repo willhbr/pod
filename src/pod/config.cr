@@ -407,11 +407,20 @@ module Pod::Config
     @name = DevContainer.auto_name
     @interactive = true
     @autoremove = true
-    @bind_mounts = {"." => "/src"}
-    @run_flags = KVMapping(String, YAML::Any){"workdir" => YAML::Any.new("/src")}
+
+    def self.new(ctx : ::YAML::ParseContext, node : ::YAML::Nodes::Node)
+      dev = previous_def(ctx, node)
+      dev.add_defaults
+      dev
+    end
 
     def self.auto_name
       ::File.basename Dir.current
+    end
+
+    def add_defaults
+      @bind_mounts["."] = "/src" unless @bind_mounts.includes? "."
+      @run_flags.put_no_replace "workdir", YAML::Any.new("/src")
     end
   end
 end

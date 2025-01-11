@@ -37,6 +37,11 @@ module Pod::Config
       self[k] = v
     end
 
+    def put_no_replace(k : K, v : V)
+      return if @tuples.any? { |t| t[0] == k }
+      self[k] = v
+    end
+
     def to_yaml(yaml : YAML::Nodes::Builder) : Nil
       yaml.mapping(reference: self) do
         @tuples.each do |key, value|
