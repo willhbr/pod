@@ -32,13 +32,12 @@ class Pod::Initializer
     if image && confirm("Enter container to setup project now?")
       do_container_setup(name, image)
     end
-    source_dir = get_source_dir(workdir) || "<<SOURCE DIRECTORY>>"
     image ||= "<<YOUR IMAGE>>"
-    write_config_files(name, image, source_dir)
+    write_config_files(name, image)
     puts "Initialised project in #{workdir}"
   end
 
-  def write_config_files(project, image, source_dir)
+  def write_config_files(project, image)
     File.write "pods.yaml", ECR.render "src/template/pods.yaml"
     File.write "Containerfile.prod", ECR.render "src/template/Containerfile.prod"
   end
@@ -132,46 +131,33 @@ class Pod::Initializer
     end
   end
 
-  def get_source_dir(workdir)
-    entries = Dir.entries(workdir).sort.select { |e|
-      !{".", "..", ".git"}.includes?(e) && File.directory?(e)
-    }
-
-    default = entries.size + 1
-    entries.each_with_index do |entry, idx|
-      if SOURCE_DIRECTORY_NAMES.includes? entry
-        default = idx + 1
-      end
-      puts " [#{idx + 1}] #{entry}"
-    end
-    puts " [#{entries.size + 1}] None of these"
-    puts
-
-    selection = prompt("Which directory has the source files?", default: default.to_s).to_i
-    selection -= 1
-    if selection >= entries.size || selection <= 0
-      return nil
-    else
-      entries[selection]
-    end
-  end
-
   def get_image
     loop do
       images = Podman.get_images(
         remote: nil,
         filter: "dangling=false"
       ).sort_by { |i| {i.name.starts_with?("localhost") ? 1 : 0, i.name} }
-      unless images.empty?
-        puts "Local images:"
-        puts images[0...20].map_with_index { |im, idx|
-          " [#{idx + 1}] #{im.name}"
-        }.join("\n")
-        puts "Select existing image or enter name."
-      end
-      unless image = prompt("Base image for development")
-        puts "not adding image, you can do that later"
-        return nil
+      if fzf = Process.find_executable("fzf")
+        io = IO::Memory.new
+        Process.run(
+          fzf,
+          input: IO::Memory.new(images.map(&.name).join("\n")),
+          output: io, error: Process::Redirect::Inherit)
+        io.rewind
+        image = io.to_s.strip
+        return image.empty? ? nil : image
+      else
+        unless images.empty?
+          puts "Local images:"
+          puts images[0...20].map_with_index { |im, idx|
+            " [#{idx + 1}] #{im.name}"
+          }.join("\n")
+          puts "Select existing image or enter name."
+        end
+        unless image = prompt("Base image for development")
+          puts "not adding image, you can do that later"
+          return nil
+        end
       end
 
       if (idx = image.to_i?) && (im = images[idx - 1]?)

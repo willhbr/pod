@@ -415,7 +415,7 @@ module Pod::Config
     end
 
     def self.auto_name
-      ::File.basename Dir.current
+      ::File.basename(Dir.current) + "-dev"
     end
 
     def add_defaults
