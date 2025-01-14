@@ -145,6 +145,7 @@ class Pod::Initializer
           output: io, error: Process::Redirect::Inherit)
         io.rewind
         image = io.to_s.strip
+        puts "Using #{image}"
         return image.empty? ? nil : image
       else
         unless images.empty?

@@ -1,0 +1,17 @@
+jobs:
+  release_linux:
+    runs-on: ubuntu-latest
+    container:
+      image: crystallang/crystal:latest-alpine
+    steps:
+      - uses: actions/checkout@v2
+      - run: shards build --production --release --static --no-debug
+      - name: Upload
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./bin/pod
+          asset_name: pod-${{ github.event.release.tag_name }}-linux-x86_64
+          asset_content_type: binary/octet-stream

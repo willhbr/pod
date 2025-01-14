@@ -1,5 +1,5 @@
 require "spec"
-require "../src/pod/*"
+require "../src/pod"
 
 def config(str)
   Pod::Config::File.from_yaml(str)
