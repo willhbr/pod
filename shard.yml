@@ -13,11 +13,9 @@ crystal: 1.9.2
 license: MIT
 
 dependencies:
-  clim:
-    github: at-grandpa/clim
-  geode:
-    github: willhbr/geode
   diff:
     github: watzon/diff
+  geode:
+    github: willhbr/geode
   podman:
     github: willhbr/podman-cr

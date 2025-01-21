@@ -44,7 +44,7 @@ class Pod::Runner
     end
   end
 
-  def enter(target : String?, extra_args : Enumerable(String)?)
+  def enter(target : String?, extra_args : Enumerable(String)?, new_container)
     containers = @config.get_containers(target)
     if containers.empty?
       raise Podman::Exception.new("no entrypoint: #{target}")
@@ -53,10 +53,25 @@ class Pod::Runner
       raise Podman::Exception.new("multiple containers matched #{target}: #{containers.map { |c| c[1].name }.join(", ")}")
     end
     _, container = containers[0]
+    if new_container
+      enter_new_container(container, extra_args)
+      return
+    end
+    existing = Podman.get_containers(names: [container.name], remote: @remote)
+    if existing.empty?
+      enter_new_container(container, extra_args)
+    else
+      args = {"exec", "-it", container.name, "sh", "-c", Runner::MAGIC_SHELL}
+      run(args, exec: true, remote: @remote)
+    end
+  end
+
+  private def enter_new_container(container, extra_args)
     container.apply_overrides!(
       detached: false,
       name: "#{container.name}-shell",
       autoremove: true,
+      remote: @remote,
       entrypoint: YAML::Any.new(["sh", "-c", Runner::MAGIC_SHELL].map { |c| YAML::Any.new(c) })
     )
     args = container.to_command(extra_args)

@@ -21,15 +21,15 @@ module Pod::Config
         if ::File.exists? target
           Log.info { "Loading config from #{target}" }
           case target.extension.downcase
-          when "yaml", "yml"
+          when ".yaml", ".yml"
             config = Config::File.from_yaml(::File.read(target))
-          when "json"
+          when ".json"
             config = Config::File.from_json(::File.read(target))
           else
             Log.warn { "Unsure of file type for #{target}, defaulting to YAML" }
             config = Config::File.from_yaml(::File.read(target))
           end
-          Log.info { config.pretty_inspect }
+          Log.info { config.to_yaml }
           return config
         end
       end
@@ -130,6 +130,10 @@ module Pod::Config
 
     protected def on_unknown_yaml_attribute(ctx, key, key_node, value_node)
       Log.debug { "Got unknown yaml key in top-level: #{key}" }
+    end
+
+    def inspect(io)
+      to_yaml(io)
     end
   end
 

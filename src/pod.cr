@@ -1,6 +1,6 @@
 require "yaml"
 require "./pod/*"
-require "clim"
+require "option_parser"
 require "geode"
 require "ecr"
 
@@ -12,312 +12,384 @@ module Pod
   end
 end
 
-def exec_podman(args, remote = nil)
-  wrap_exceptions do
-    Pod::PodmanCLI.exec(args, remote)
+module Pod::CLI::Subcommand
+  getter! globals : PodOptions
+  getter target : String? = nil
+
+  abstract def use_parser(p : OptionParser)
+  abstract def run(args : Array(String))
+
+  def docs : String
+    {% begin %}
+    {{ @type }}::DOCS
+    {% end %}
+  end
+
+  def set_global_opts(@globals : PodOptions)
+  end
+
+  def usage(str)
+    "Usage: pod #{{% begin %}{{ @type }}::CMD{% end %}} #{str}"
+  end
+
+  def with_target(p)
+    p.before_each do |flag|
+      unless flag.starts_with? '-'
+        @target = flag
+        p.stop
+      end
+    end
   end
 end
 
-def wrap_exceptions
-  begin
-    yield
-  rescue ex : Podman::Exception
-    ex.print_message STDERR
-    Log.notice(exception: ex) { "Pod failed" }
-    exit 1
-  rescue ex : ::Exception
-    STDERR.puts ex.message
-    Log.error(exception: ex) { "Unexpected exception" }
-    exit 1
+class RunOptions
+  include Pod::CLI::Subcommand
+  CMD  = "run"
+  DESC = "run a container"
+  DOCS = "
+  Run a container.
+
+  Runs a container as configured in the config file. If no target name is given,
+  runs the container specified by defaults.run or if there is only one container
+  configured, runs that.
+  "
+
+  @show_only = false
+  @detached : Bool? = nil
+
+  def use_parser(p)
+    p.banner = usage("[options] <target>")
+    with_target(p)
+    p.on("-s", "--show", "show the command, don't run it") { @show_only = true }
+    p.on("-d", "--detach", "run container detached") { @detached = true }
+    p.on("-i", "--interactive", "run container interactively") { @detached = false }
+  end
+
+  def run(args)
+    target = @target
+    config = globals.config
+    Pod::Runner.new(config, globals.@remote_host, @show_only, STDOUT).run(
+      target, @detached, args.empty? ? nil : args)
   end
 end
 
-class Pod::CLI < Clim
+class BuildOptions
+  include Pod::CLI::Subcommand
+  CMD  = "build"
+  DESC = "build image(s)"
+  DOCS = "
+  Build one or more images.
+  "
+  @show_only = false
+
+  def use_parser(p)
+    p.banner = usage("[options] <target>")
+    with_target(p)
+    p.on("-s", "--show", "show the command, don't run it") { @show_only = true }
+  end
+
+  def run(args)
+    target = @target
+    actuator = Pod::Runner.new(globals.config,
+      globals.@remote_host, @show_only, STDOUT)
+    actuator.build(target)
+  end
+end
+
+class PushOptions
+  include Pod::CLI::Subcommand
+  CMD  = "push"
+  DESC = "push image(s) to remote or registry"
+  DOCS = "
+  Push images to specified remote host or registry
+  "
+  @show_only = false
+
+  def use_parser(p)
+    p.banner = usage("[options] <target>")
+    with_target(p)
+    p.on("-s", "--show", "show the command, don't run it") { @show_only = true }
+  end
+
+  def run(args)
+    target = @target
+    actuator = Pod::Runner.new(globals.config,
+      globals.@remote_host, @show_only, STDOUT)
+    actuator.push(target)
+  end
+end
+
+class DiffOptions
+  include Pod::CLI::Subcommand
+  CMD  = "diff"
+  DESC = "show diff of updating containers"
+  DOCS = "
+  Show the diff that would be applied by `update`.
+  "
+
+  def use_parser(p)
+    p.banner = usage("[options] <target>")
+    with_target(p)
+  end
+
+  def run(args)
+    config = globals.config
+    manager = Pod::Updater.new(STDOUT, globals.@remote_host, false)
+    target = @target || config.defaults.update
+    configs = config.get_containers(target).map { |c| c[1] }
+    updates = manager.calculate_updates(configs)
+    manager.print_changes(updates)
+  end
+end
+
+class UpdateOptions
+  include Pod::CLI::Subcommand
+  CMD  = "update"
+  DESC = "update containers to match config"
+  DOCS = "
+  Update containers to match the config file
+  "
+
+  @show_diff = false
+  @bounce = false
+
+  def use_parser(p)
+    p.banner = usage("[options] <target>")
+    with_target(p)
+    p.on("-d", "--diff", "show a diff") { @show_diff = true }
+    p.on("-b", "--bounce", "restart all containers") { @bounce = true }
+  end
+
+  def run(args)
+    config = globals.config
+    target = @target || config.defaults.update
+    manager = Pod::Updater.new(STDOUT, globals.@remote_host, @bounce)
+    configs = config.get_containers(target).map { |c| c[1] }
+    configs.each do |conf|
+      conf.apply_overrides! remote: globals.@remote_host, detached: true
+    end
+    updates = manager.calculate_updates(configs)
+    if @show_diff
+      manager.print_changes(updates)
+      if updates.any? &.actionable?
+        print "update? [y/N] "
+        if (inp = gets) && inp.chomp.downcase == "y"
+          manager.update_containers(updates)
+        end
+      end
+    else
+      manager.update_containers(updates)
+    end
+  end
+end
+
+class EnterOptions
+  include Pod::CLI::Subcommand
+  CMD  = "enter"
+  DESC = "run shell in container"
+  DOCS = "
+  Run a shell in a container
+  "
+
+  @new_container = false
+
+  def use_parser(p)
+    p.banner = usage("[options] <target>")
+    with_target(p)
+    p.on("-n", "--new", "start a new container instead of checking for extisting one") { @new_container = true }
+  end
+
+  def run(args)
+    entrypoint = @target
+    Pod::Runner.new(globals.config, globals.@remote_host, false, STDOUT).enter(
+      entrypoint, args, @new_container)
+  end
+end
+
+class InitOptions
+  include Pod::CLI::Subcommand
+  CMD  = "init"
+  DESC = "create new pod project in current directory"
+  DOCS = "
+  Initialise a pod project in the currect directory
+  "
+
+  def use_parser(p)
+    p.banner = usage("")
+  end
+
+  def run(args)
+    Pod::Initializer.run
+  end
+end
+
+class SecretsOptions
+  include Pod::CLI::Subcommand
+  CMD  = "secrets"
+  DESC = "update secrets from config"
+  DOCS = "
+  Update secrets!
+  "
+
+  def use_parser(p)
+    p.banner = usage("[options] <target>")
+    with_target(p)
+  end
+
+  def run(args)
+    config = globals.config
+    target = @target || config.defaults.update
+    runner = Pod::Runner.new(config, globals.@remote_host, false, STDOUT)
+    runner.update_secrets(target)
+  end
+end
+
+class ScriptOptions
+  include Pod::CLI::Subcommand
+  CMD  = "script"
+  DESC = "run a script"
+  DOCS = "
+  run a script in a container
+  "
+
+  @type : String? = nil
+
+  def use_parser(p)
+    p.banner = usage("[options] <file> [flags]")
+    p.on("-t", "--type=TYPE", "force a particular file type") { |t| @type = t }
+  end
+
+  def run(args)
+    path = Path[PodOptions::SCRIPT_CONFIG].expand(home: true)
+    unless File.exists? path
+      raise Podman::Exception.new "Script config doesn't exist in #{PodOptions::SCRIPT_CONFIG}"
+      exit 1
+    end
+    config = Pod::Scripter::Config.from_yaml(File.read(path))
+    scripter = Pod::Scripter.new(config)
+    scripter.exec(@type, args)
+  end
+end
+
+class ReplOptions
+  include Pod::CLI::Subcommand
+  CMD  = "repl"
+  DESC = "run a repl"
+  DOCS = "
+  run a repl for a particular language in a container
+  "
+
+  def use_parser(p)
+    p.banner = usage("[options] <file> [flags]")
+    with_target(p)
+  end
+
+  def run(args)
+    unless target = @target
+      raise Podman::Exception.new("missing repl to start!")
+    end
+    config = Pod::Scripter::Config.from_yaml(File.read(Path[PodOptions::SCRIPT_CONFIG].expand(home: true)))
+    scripter = Pod::Scripter.new(config)
+    scripter.repl(target, args)
+  end
+end
+
+class PodOptions
   SCRIPT_CONFIG = ENV["POD_SCRIPT_CONFIG"]? || "~/.config/pod/script.yaml"
+  @config_path : String? = nil
+  @remote_host : String? = nil
+  @subcommand : Pod::CLI::Subcommand? = nil
+  @config : Pod::Config::File? = nil
+  @show_help = false
 
-  main do
-    desc "Pod CLI"
-    usage "pod [sub_command] [arguments]"
+  def initialize(@args : Array(String))
+    @option_parser = OptionParser.new
+    use_parser(@option_parser)
+    @option_parser.parse(@args)
+  end
 
-    version "pod version: #{Pod::VERSION} (#{Pod.build_info})", short: "-v"
-    help short: "-h"
+  def config
+    @config ||= Pod::Config.load_config!(@config_path)
+  end
 
-    run do |opts, args|
-      wrap_exceptions do
-        puts opts.help_string
-        if conf = Config.load_config(nil)
-          puts "pod build => pod build #{conf.defaults.build}" if conf.defaults.build
-          puts "pod run => pod run #{conf.defaults.build}" if conf.defaults.run
-          puts "pod update => pod update #{conf.defaults.update}" if conf.defaults.update
-          puts
-          puts "pod build #{conf.images.keys.join(", ")}" unless conf.images.size.zero?
-          puts "pod run #{conf.containers.keys.join(", ")}" unless conf.containers.size.zero?
-          puts
-          puts "pod build|run :all,#{conf.groups.keys.join(", ")}" unless conf.groups.size.zero?
+  def use_parser(p)
+    p.banner = "pod cli"
+    p.on("-c", "--config=FILE", "config file path") { |c| @config_path = c }
+    p.on("-r", "--remote=HOST", "remote host name") { |r| @remote_host = r }
+    p.on("-v", "--version", "show version") do
+      puts "pod version: #{Pod::VERSION} (#{Pod.build_info})"
+      exit
+    end
+    p.on("-h", "--help", "show help") { @show_help = true }
+    p.on("h", "show help") { @show_help = true }
+    p.on("help", "show help") do
+      @show_help = true
+      subcommands(p)
+    end
+    subcommands(p)
+    p.invalid_option do |flag|
+      STDERR.puts "ERROR: #{flag} is not a valid option."
+      STDERR.puts p
+      exit(1)
+    end
+  end
+
+  def subcommand(p, name, help, type)
+    p.on(name, help) do
+      unless @subcommand.nil?
+        raise "double subcommands, wot"
+      end
+      @subcommand = cmd = type.new
+      cmd.set_global_opts(self)
+      cmd.use_parser(p)
+    end
+  end
+
+  macro sub(target, type)
+    subcommand({{ target }}, {{ type }}::CMD, {{ type }}::DESC, {{ type }})
+  end
+
+  def subcommands(p)
+    sub p, RunOptions
+    sub p, BuildOptions
+    sub p, PushOptions
+    sub p, UpdateOptions
+    sub p, DiffOptions
+    sub p, EnterOptions
+    sub p, InitOptions
+    sub p, SecretsOptions
+    sub p, ScriptOptions
+    sub p, ReplOptions
+  end
+
+  def show_help
+    if sub = @subcommand
+      puts sub.docs
+    end
+    puts @option_parser
+  end
+
+  def run(args)
+    if @show_help
+      show_help
+    elsif sub = @subcommand
+      begin
+        # This is a hack, but an easy way to strip off the first arg
+        unless sub.target.nil?
+          args.shift
         end
+        sub.run(args)
+      rescue ex : Podman::Exception
+        ex.print_message STDERR
+        Log.notice(exception: ex) { "Pod failed" }
+        exit 1
+      rescue ex : ::Exception
+        STDERR.puts ex.message
+        Log.error(exception: ex) { "Unexpected exception" }
+        exit 1
       end
-    end
-
-    sub "build" do
-      alias_name "b"
-      desc "build an image"
-      usage "pod build [options]"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
-      option "-s", "--show", type: Bool, desc: "Show command only", default: false
-      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
-      argument "target", type: String, desc: "target to build", required: false
-
-      run do |opts, args|
-        wrap_exceptions do
-          config = Config.load_config!(opts.config)
-          actuator = Runner.new(config, opts.remote, opts.show, STDOUT)
-          actuator.build(args.target)
-        end
-      end
-    end
-
-    sub "run" do
-      alias_name "r"
-      desc "run a container"
-      usage "pod run [options]"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
-      option "-s", "--show", type: Bool, desc: "Show command only", default: false
-      option "-d", "--detach", type: Bool, desc: "Run container detached", default: false
-      option "-i", "--interactive", type: Bool, desc: "Run container interactive", default: false
-      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
-      argument "target", type: String, desc: "target to run", required: false
-
-      run do |opts, args|
-        wrap_exceptions do
-          extra_args = args.argv.skip_while { |a| a != "--" }.to_a
-          if extra_args.empty?
-            extra_args = nil
-          else
-            extra_args = extra_args[1...]
-          end
-          config = Config.load_config!(opts.config)
-          if opts.detach
-            detached = true
-          elsif opts.interactive
-            detached = false
-          else
-            detached = nil
-          end
-          Runner.new(config, opts.remote, opts.show, STDOUT).run(
-            args.target, detached, extra_args)
-        end
-      end
-    end
-
-    sub "push" do
-      alias_name "p"
-      desc "push an image to a registry"
-      usage "pod push [options]"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
-      option "-s", "--show", type: Bool, desc: "Show command only", default: false
-      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
-      argument "target", type: String, desc: "target to push", required: false
-
-      run do |opts, args|
-        wrap_exceptions do
-          config = Config.load_config!(opts.config)
-          Runner.new(config, opts.remote, opts.show, STDOUT).push(args.target)
-        end
-      end
-    end
-
-    sub "update" do
-      alias_name "u"
-      desc "update a running container"
-      usage "pod update [options]"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
-      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
-      option "-d", "--diff", type: Bool, desc: "Show a diff", default: false
-      option "-b", "--bounce", type: Bool, desc: "Force restart all containers", default: false
-      argument "target", type: String, desc: "target to run", required: false
-
-      run do |opts, args|
-        wrap_exceptions do
-          config = Config.load_config!(opts.config)
-          containers = config.get_containers(args.target || config.defaults.update)
-          manager = Updater.new(STDOUT, opts.remote, opts.bounce)
-          configs = containers.map { |c| c[1] }
-          configs.each do |conf|
-            conf.apply_overrides! remote: opts.remote, detached: true
-          end
-          updates = manager.calculate_updates(configs)
-          if opts.diff
-            manager.print_changes(updates)
-            if updates.any? &.actionable?
-              print "update? [y/N] "
-              if (inp = gets) && inp.chomp.downcase == "y"
-                manager.update_containers(updates)
-              end
-            end
-          else
-            manager.update_containers(updates)
-          end
-        end
-      end
-    end
-
-    sub "diff" do
-      alias_name "d"
-      desc "preview updates to running containers"
-      usage "pod diff [options]"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
-      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
-      option "-b", "--bounce", type: Bool, desc: "Force restart all containers", default: false
-      argument "target", type: String, desc: "target to run", required: false
-
-      run do |opts, args|
-        wrap_exceptions do
-          config = Config.load_config!(opts.config)
-          containers = config.get_containers(args.target || config.defaults.update)
-          manager = Updater.new(STDOUT, opts.remote, opts.bounce)
-          configs = containers.map { |c| c[1] }
-          updates = manager.calculate_updates(configs)
-          manager.print_changes(updates)
-        end
-      end
-    end
-
-    sub "secrets" do
-      desc "update secrets for containers"
-      usage "pod secrets <container>"
-      argument "target", type: String, desc: "container(s) to update", required: false
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
-      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
-
-      run do |opts, args|
-        wrap_exceptions do
-          config = Config.load_config!(opts.config)
-          runner = Runner.new(config, opts.remote, false, STDOUT)
-          runner.update_secrets(args.target || config.defaults.update)
-        end
-      end
-    end
-
-    sub "shell" do
-      alias_name "sh"
-      desc "attach a shell to a container"
-      usage "pod shell <container>"
-      argument "target", type: String, desc: "target to run in", required: true
-      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
-
-      run do |opts, args|
-        exec_podman({"exec", "-it", args.target, "sh", "-c",
-                     Runner::MAGIC_SHELL}, remote: opts.remote)
-      end
-    end
-
-    sub "attach" do
-      alias_name "a"
-      desc "attach to a container"
-      usage "pod attach <container>"
-      argument "target", type: String, desc: "target to run in", required: true
-      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
-      run do |opts, args|
-        exec_podman({"attach", args.target}, remote: opts.remote)
-      end
-    end
-
-    sub "enter" do
-      alias_name "e"
-      desc "run a shell from an entrypoint"
-      usage "pod enter <entrypoint>"
-      argument "entrypoint", type: String, desc: "entrypoint to run", required: false
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
-      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
-      option "-s", "--show", type: Bool, desc: "Show command only", default: false
-      run do |opts, args|
-        wrap_exceptions do
-          extra_args = args.argv.skip_while { |a| a != "--" }.to_a
-          if extra_args.empty?
-            extra_args = nil
-          else
-            extra_args = extra_args[1...]
-          end
-          config = Config.load_config!(opts.config)
-          Runner.new(config, opts.remote, opts.show, STDOUT).enter(
-            args.entrypoint, extra_args)
-        end
-      end
-    end
-
-    sub "logs" do
-      alias_name "l"
-      desc "show logs from a container"
-      usage "pod logs <container>"
-      argument "target", type: String, desc: "target to run in", required: true
-      option "-f FOLLOW", "--follow=FOLLOW", type: Bool, desc: "follow logs", default: true
-      option "-r REMOTE", "--remote=REMOTE", type: String, desc: "Remote host to use", required: false
-
-      run do |opts, args|
-        exec_podman({"logs", "--follow=#{opts.follow}", args.target}, remote: opts.remote)
-      end
-    end
-
-    sub "init" do
-      alias_name "i", "initialise", "initialize"
-      desc "setup a pod project"
-      usage "pod init"
-
-      run do |opts, args|
-        wrap_exceptions do
-          Pod::Initializer.run
-        end
-      end
-    end
-
-    sub "targets" do
-      desc "targets as defined in config file, for shell completion"
-      usage "pod init"
-      option "-c CONFIG", "--config=CONFIG", type: String, desc: "Config file", required: false
-
-      run do |opts, args|
-        wrap_exceptions do
-          config = Config.load_config!(opts.config)
-          puts Set(String).new(
-            config.images.keys +
-            config.containers.keys
-          ).join('\n')
-        end
-      end
-    end
-
-    sub "script" do
-      alias_name "sc"
-      desc "run a script"
-      usage "pod script <name> -- [args]"
-      option "-t TYPE", "--type=TYPE", type: String, desc: "force a particular file extension", required: false
-
-      run do |opts, args|
-        wrap_exceptions do
-          path = Path[SCRIPT_CONFIG].expand(home: true)
-          unless File.exists? path
-            STDERR.puts "Script config doesn't exist in #{SCRIPT_CONFIG}"
-            exit 1
-          end
-          config = Scripter::Config.from_yaml(File.read(path))
-          scripter = Pod::Scripter.new(config)
-          scripter.exec(opts.type, args.argv)
-        end
-      end
-    end
-
-    sub "repl" do
-      desc "run a repl"
-      usage "pod repl <type>"
-      argument "type", type: String, desc: "repl to run", required: true
-
-      run do |opts, args|
-        wrap_exceptions do
-          config = Scripter::Config.from_yaml(File.read(Path[SCRIPT_CONFIG].expand(home: true)))
-          scripter = Pod::Scripter.new(config)
-          scripter.repl(args.type, args.argv.shift(0))
-        end
-      end
+    else
+      show_help
     end
   end
 end

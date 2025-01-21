@@ -16,6 +16,8 @@ Log.setup do |l|
   l.stderr(severity: severity)
 end
 Log.info { "Logging at: #{severity}" }
-
 Log.debug { "ARGV: #{ARGV.inspect}" }
-Pod::CLI.start(ARGV)
+
+options = PodOptions.new(ARGV)
+Log.debug { "options: #{options.inspect}" }
+options.run(ARGV)

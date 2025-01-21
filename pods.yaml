@@ -17,7 +17,7 @@ images:
 development:
   default:
     image: localhost/pod:dev-latest
-    entrypoint: ['shards', 'build']
+    entrypoint: ['shards', 'run', '--error-trace', '--']
 
 containers:
   install:
