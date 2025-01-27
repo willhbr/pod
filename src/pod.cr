@@ -46,13 +46,13 @@ class RunOptions
   include Pod::CLI::Subcommand
   CMD  = "run"
   DESC = "run a container"
-  DOCS = "
+  DOCS = <<-DOC
   Run a container.
 
   Runs a container as configured in the config file. If no target name is given,
   runs the container specified by defaults.run or if there is only one container
   configured, runs that.
-  "
+  DOC
 
   @show_only = false
   @detached : Bool? = nil
@@ -77,9 +77,9 @@ class BuildOptions
   include Pod::CLI::Subcommand
   CMD  = "build"
   DESC = "build image(s)"
-  DOCS = "
+  DOCS = <<-DOC
   Build one or more images.
-  "
+  DOC
   @show_only = false
 
   def use_parser(p)
@@ -100,9 +100,9 @@ class PushOptions
   include Pod::CLI::Subcommand
   CMD  = "push"
   DESC = "push image(s) to remote or registry"
-  DOCS = "
+  DOCS = <<-DOC
   Push images to specified remote host or registry
-  "
+  DOC
   @show_only = false
 
   def use_parser(p)
@@ -123,9 +123,9 @@ class DiffOptions
   include Pod::CLI::Subcommand
   CMD  = "diff"
   DESC = "show diff of updating containers"
-  DOCS = "
+  DOCS = <<-DOC
   Show the diff that would be applied by `update`.
-  "
+  DOC
 
   def use_parser(p)
     p.banner = usage("[options] <target>")
@@ -146,25 +146,26 @@ class UpdateOptions
   include Pod::CLI::Subcommand
   CMD  = "update"
   DESC = "update containers to match config"
-  DOCS = "
+  DOCS = <<-DOC
   Update containers to match the config file
-  "
+  DOC
 
   @show_diff = false
   @bounce = false
 
   def use_parser(p)
     p.banner = usage("[options] <target>")
-    with_target(p)
     p.on("-d", "--diff", "show a diff") { @show_diff = true }
     p.on("-b", "--bounce", "restart all containers") { @bounce = true }
   end
 
   def run(args)
     config = globals.config
-    target = @target || config.defaults.update
     manager = Pod::Updater.new(STDOUT, globals.@remote_host, @bounce)
-    configs = config.get_containers(target).map { |c| c[1] }
+    configs = Array(Pod::Config::Container).new
+    args.each do |target|
+      configs.concat config.get_containers(target).map { |c| c[1] }
+    end
     configs.each do |conf|
       conf.apply_overrides! remote: globals.@remote_host, detached: true
     end
@@ -187,9 +188,9 @@ class EnterOptions
   include Pod::CLI::Subcommand
   CMD  = "enter"
   DESC = "run shell in container"
-  DOCS = "
+  DOCS = <<-DOC
   Run a shell in a container
-  "
+  DOC
 
   @new_container = false
 
@@ -210,9 +211,9 @@ class InitOptions
   include Pod::CLI::Subcommand
   CMD  = "init"
   DESC = "create new pod project in current directory"
-  DOCS = "
+  DOCS = <<-DOC
   Initialise a pod project in the currect directory
-  "
+  DOC
 
   def use_parser(p)
     p.banner = usage("")
@@ -227,9 +228,9 @@ class SecretsOptions
   include Pod::CLI::Subcommand
   CMD  = "secrets"
   DESC = "update secrets from config"
-  DOCS = "
+  DOCS = <<-DOC
   Update secrets!
-  "
+  DOC
 
   def use_parser(p)
     p.banner = usage("[options] <target>")
@@ -248,9 +249,9 @@ class ScriptOptions
   include Pod::CLI::Subcommand
   CMD  = "script"
   DESC = "run a script"
-  DOCS = "
+  DOCS = <<-DOC
   run a script in a container
-  "
+  DOC
 
   @type : String? = nil
 
@@ -275,9 +276,9 @@ class ReplOptions
   include Pod::CLI::Subcommand
   CMD  = "repl"
   DESC = "run a repl"
-  DOCS = "
+  DOCS = <<-DOC
   run a repl for a particular language in a container
-  "
+  DOC
 
   def use_parser(p)
     p.banner = usage("[options] <file> [flags]")
