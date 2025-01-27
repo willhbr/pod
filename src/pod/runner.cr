@@ -28,6 +28,7 @@ class Pod::Runner
       detached = true
     end
     containers.each do |name, container|
+      container.resolve_refs(@config)
       container.apply_overrides! remote: @remote, detached: detached
       if container.pull_latest
         # TODO this doesn't work with remote
@@ -53,6 +54,7 @@ class Pod::Runner
       raise Podman::Exception.new("multiple containers matched #{target}: #{containers.map { |c| c[1].name }.join(", ")}")
     end
     _, container = containers[0]
+    container.resolve_refs(@config)
     if new_container
       enter_new_container(container, extra_args)
       return

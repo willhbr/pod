@@ -137,6 +137,7 @@ class DiffOptions
     manager = Pod::Updater.new(STDOUT, globals.@remote_host, false)
     target = @target || config.defaults.update
     configs = config.get_containers(target).map { |c| c[1] }
+    configs.each { |c| c.resolve_refs(config) }
     updates = manager.calculate_updates(configs)
     manager.print_changes(updates)
   end
@@ -163,9 +164,13 @@ class UpdateOptions
     config = globals.config
     manager = Pod::Updater.new(STDOUT, globals.@remote_host, @bounce)
     configs = Array(Pod::Config::Container).new
+    if args.empty?
+      args = [":all"]
+    end
     args.each do |target|
       configs.concat config.get_containers(target).map { |c| c[1] }
     end
+    configs.each { |c| c.resolve_refs(config) }
     configs.each do |conf|
       conf.apply_overrides! remote: globals.@remote_host, detached: true
     end

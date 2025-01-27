@@ -258,6 +258,21 @@ module Pod::Config
     def initialize(@name, @image)
     end
 
+    def resolve_refs(config : Config::File)
+      unless @image.starts_with? ':'
+        return
+      end
+      img = @image[1..]
+      unless image = config.images[img]?
+        raise "unable to find #{img} in config, images are: #{config.images.keys.join(", ")}"
+      end
+      if tag = image.tag
+        @image = tag
+      else
+        raise "can't use ref to untagged image #{img}"
+      end
+    end
+
     def apply_overrides!(
       detached : Bool? = nil, remote : String? = nil,
       image : String? = nil, name : String? = nil,
