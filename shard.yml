@@ -2,7 +2,7 @@ name: pod
 version: 0.1.0
 
 authors:
-  - Will Richardson <william.hamish@gmail.com>
+  - Will Richardson <will@willhbr.net>
 
 targets:
   pod:

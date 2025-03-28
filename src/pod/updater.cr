@@ -109,17 +109,10 @@ class Pod::Updater
       end
       existing_containers = Podman.get_containers(
         configs.map(&.name), remote: host).to_h_by(&.name)
-      configs.in_groups_of(4).each do |group|
-        Geode::Spindle.run do |spindle|
-          group.each do |config|
-            next if config.nil?
-            # Not threadsafe at all but whatever
-            container = existing_containers.delete(config.name)
-            spindle.spawn do
-              changes << calculate_update(config, container, host)
-            end
-          end
-        end
+      configs.each_parallel(6) do |config|
+        # Not threadsafe at all but whatever
+        container = existing_containers.delete(config.name)
+        changes << calculate_update(config, container, host)
       end
     end
     changes
