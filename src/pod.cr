@@ -8,7 +8,7 @@ module Pod
   VERSION = "0.1.0"
 
   def self.build_info
-    Geode::ProgramInfo::BUILT_AT
+    "#{Geode::ProgramInfo::BUILT_AT}, #{Crystal::VERSION}"
   end
 end
 

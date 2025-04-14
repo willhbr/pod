@@ -16,16 +16,12 @@ images:
 
 development:
   default:
-    image: localhost/pod:dev-latest
+    image: :dev
     entrypoint: ['shards', 'run', '--error-trace', '--']
 
 containers:
   install:
     name: pod-install
-    image: localhost/pod:prod-latest
+    image: :install
     interactive: true
     autoremove: true
-
-entrypoints:
-  default:
-    image: localhost/pod:prod-latest

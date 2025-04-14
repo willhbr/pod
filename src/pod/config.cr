@@ -10,7 +10,7 @@ module Pod::Config
     "pods.json",
   }
 
-  def self.load_config(file) : Config::File?
+  def self.find_config_path(file) : Path?
     paths = Path[Dir.current].parents
     paths << Path[Dir.current]
     files = file.nil? ? CONFIG_FILES : {file}
@@ -19,30 +19,65 @@ module Pod::Config
         target = path / file
         Dir.cd target.parent
         if ::File.exists? target
-          Log.info { "Loading config from #{target}" }
-          case target.extension.downcase
-          when ".yaml", ".yml"
-            config = Config::File.from_yaml(::File.read(target))
-          when ".json"
-            config = Config::File.from_json(::File.read(target))
-          else
-            Log.warn { "Unsure of file type for #{target}, defaulting to YAML" }
-            config = Config::File.from_yaml(::File.read(target))
-          end
-          Log.info { config.to_yaml }
-          return config
+          return target
         end
       end
     end
   end
 
+  def self.parse_config(target) : Config::File?
+    Log.info { "Loading config from #{target}" }
+    case target.extension.downcase
+    when ".yaml", ".yml"
+      config = Config::File.from_yaml(::File.read(target))
+    when ".json"
+      config = Config::File.from_json(::File.read(target))
+    else
+      Log.warn { "Unsure of file type for #{target}, defaulting to YAML" }
+      config = Config::File.from_yaml(::File.read(target))
+    end
+    Log.info { config.to_yaml }
+    return config
+  end
+
+  def self.try_show_context(line_number, msg, path, io)
+    line = line_number - 1
+    content = ::File.read(path).lines
+    context = 5
+    start = {line - context, 0}.max
+    finish = {line + context, content.size}.min
+    (start..finish).each do |idx|
+      if idx == line
+        io.puts "#{(idx + 1).to_s.rjust(3)}: #{content[idx]} <-- #{msg}".colorize(:red)
+      else
+        io.puts "#{(idx + 1).to_s.rjust(3)}: #{content[idx]}"
+      end
+    end
+  end
+
   def self.load_config!(file) : Config::File
+    path : Path? = nil
     begin
-      if conf = load_config(file)
-        return conf
+      if path = find_config_path(file)
+        if conf = parse_config(path)
+          return conf
+        end
       end
     rescue ex : YAML::ParseException | JSON::ParseException
       STDERR.puts ex.message
+      if path
+        begin
+          if ex.is_a? YAML::ParseException
+            ln = ex.line_number
+            try_show_context(ln, ex.message, path, STDERR)
+          elsif ex.is_a? JSON::ParseException
+            ln = ex.line_number
+            try_show_context(ln, ex.message, path, STDERR)
+          end
+        rescue err
+          Log.warn(exception: err) { "Unable to show config file context" }
+        end
+      end
       raise Podman::Exception.new("Failed to parse config file #{file}", cause: ex)
     end
 

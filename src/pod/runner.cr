@@ -1,5 +1,7 @@
 class Pod::Runner
-  MAGIC_SHELL = "if which bash > /dev/null 2>&1; then bash; else sh; fi"
+  MAGIC_SHELL = "if which zsh > /dev/null 2>&1; then exec zsh;
+    elif which bash > /dev/null 2>&1; then exec bash
+    else exec sh; fi"
 
   def initialize(@config : Config::File, @remote : String?, @show : Bool, @io : IO)
   end

@@ -79,7 +79,7 @@ class Pod::Updater
   def update_containers(updates : Array(ContainerUpdate))
     action_count = 0
     failures = 0
-    updates.each do |info|
+    updates.each_parallel(6) do |info|
       begin
         info.update(@io)
         action_count += 1 if info.actionable?
